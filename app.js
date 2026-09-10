@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const APP_VERSION = '2.0.0';
+  const APP_VERSION = '2.1.0';
   const app = document.getElementById('app');
   const fileInput = document.getElementById('jsonFile');
   let DATA = window.PRONABEC_DATA || { topics: [] };
@@ -434,19 +434,15 @@
   }
 
   function renderContext(q) {
-    if (!q.context) return '';
-    const txt = q.context.text || '';
-    const long = txt.length > 1200;
-    const collapsed = long && !state.contextExpanded;
-    const shown = collapsed ? txt.slice(0, 1200).replace(/\s+$/, '') + '…' : txt;
-    return `<section class="context">
-      <div class="context-head">${icon('book')}<h3>${esc(q.context.label || 'Texto de referencia')}</h3></div>
-      <div class="context-text">${esc(shown)}</div>
-      ${long ? `<button class="context-toggle" type="button" data-toggle-context>${collapsed ? 'Leer texto completo' : 'Mostrar menos'}</button>` : ''}
-    </section>`;
-  }
+  if (!q.context) return '';
+  const txt = q.context.text || '';
+  return `<section class="context">
+    <div class="context-head">${icon('book')}<h3>${esc(q.context.label || 'Texto de referencia')}</h3></div>
+    <div class="context-text">${esc(txt)}</div>
+  </section>`;
+}
 
-  function renderVisual(q) {
+function renderVisual(q) {
     if (!q.requires_visual) return '';
     const pages = pageRange(q);
     return `<section class="visual-wrap">
@@ -458,14 +454,17 @@
   }
 
   function renderFeedback(q, selected, isCorrect) {
-    if (!isFeedbackVisible(q)) return '';
-    if (!selected) {
-      return `<div class="feedback neutral">${icon('grid')}<div>Sin respuesta. La alternativa correcta es <b>${esc(q.correct_answer)}</b>${q.correct_answer_text ? ` — ${esc(q.correct_answer_text)}` : ''}.</div></div>`;
-    }
-    return `<div class="feedback ${isCorrect ? 'ok' : 'bad'}">${icon(isCorrect ? 'check' : 'x')}<div><b>${isCorrect ? 'Respuesta correcta' : 'Respuesta incorrecta'}</b>${!isCorrect ? ` · La correcta es <b>${esc(q.correct_answer)}</b>${q.correct_answer_text ? ` — ${esc(q.correct_answer_text)}` : ''}` : ''}</div></div>`;
+  if (!isFeedbackVisible(q)) return '';
+  if (!selected) {
+    return `<div class="feedback neutral">${icon('grid')}<div>Sin respuesta. La alternativa correcta es <b>${esc(q.correct_answer)}</b>${q.correct_answer_text ? ` — ${esc(q.correct_answer_text)}` : ''}.</div></div>`;
   }
+  const basic = `<div class="feedback ${isCorrect ? 'ok' : 'bad'}">${icon(isCorrect ? 'check' : 'x')}<div><b>${isCorrect ? 'Respuesta correcta' : 'Respuesta incorrecta'}</b>${!isCorrect ? ` · La correcta es <b>${esc(q.correct_answer)}</b>${q.correct_answer_text ? ` — ${esc(q.correct_answer_text)}` : ''}` : ''}</div></div>`;
+  if (isCorrect) return basic;
+  const coach = window.PRONABEC_COACH?.build?.(q, selected) || '';
+  return basic + coach;
+}
 
-  function renderQuestion() {
+function renderQuestion() {
     const q = currentQ();
     const qs = currentQuestions();
     if (!q) return `<div class="card empty"><b>No encontramos preguntas.</b><br>Prueba con otro tema o borra el texto de búsqueda.</div>`;
@@ -580,9 +579,6 @@
     document.querySelectorAll('[data-mode]').forEach(el => el.onclick = () => setMode(el.dataset.mode));
     document.querySelectorAll('[data-load-json]').forEach(el => el.onclick = () => fileInput.click());
     document.querySelectorAll('[data-reset]').forEach(el => el.onclick = resetProgress);
-
-    const tc = document.querySelector('[data-toggle-context]');
-    if (tc) tc.onclick = () => { state.contextExpanded = !state.contextExpanded; render(); };
 
     document.querySelectorAll('[data-zoom]').forEach(img => img.onclick = () => {
       const z = document.createElement('div');
