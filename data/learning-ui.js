@@ -1,7 +1,13 @@
 (() => {
   'use strict';
 
+  function ensurePracticeMode() {
+    const practice = document.querySelector('[data-mode="practice"]');
+    if (practice && !practice.classList.contains('active')) practice.click();
+  }
+
   function applyThinkingMode() {
+    ensurePracticeMode();
     const guided = document.querySelector('.smart-reading[data-question]');
     if (!guided) return;
 
