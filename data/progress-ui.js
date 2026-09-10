@@ -37,9 +37,7 @@
   }
 
   function achievementHtml(rows) {
-    if (!rows?.length) {
-      return `<div class="next-goal">Tu primer logro aparecerá en cuanto completes tu primer ejercicio sincronizado.</div>`;
-    }
+    if (!rows?.length) return `<div class="next-goal">Tu primer logro aparecerá en cuanto completes tu primer ejercicio.</div>`;
     return `<div class="achievement-list">${rows.slice(0,8).map(row => {
       const meta = ACHIEVEMENTS[row.code] || [row.code,'Logro alcanzado.','✦'];
       return `<div class="achievement"><div class="achievement-icon">${meta[2]}</div><b>${meta[0]}</b><span>${meta[1]}</span></div>`;
@@ -112,7 +110,7 @@
       <div class="progress-source">${sourceCopy}</div>`;
   }
 
-  function injectButton() {
+  function injectMenuButton() {
     const actions = document.querySelector('.side-actions');
     if (!actions || actions.querySelector('[data-my-progress]')) return;
     const btn = document.createElement('button');
@@ -123,16 +121,32 @@
     actions.prepend(btn);
   }
 
+  function injectSessionButton() {
+    const sheet = document.querySelector('.session-sheet');
+    if (!sheet || sheet.querySelector('[data-my-progress]')) return;
+    const btn = document.createElement('button');
+    btn.className = 'session-progress-link';
+    btn.type = 'button';
+    btn.setAttribute('data-my-progress','');
+    btn.textContent = 'Ver mi avance acumulado';
+    sheet.appendChild(btn);
+  }
+
+  function inject() {
+    injectMenuButton();
+    injectSessionButton();
+  }
+
   document.addEventListener('click', e => {
-    if (e.target.closest('[data-my-progress]')) {
-      document.body.classList.remove('drawer-open');
-      openProgress();
-    }
+    if (!e.target.closest('[data-my-progress]')) return;
+    e.preventDefault();
+    document.body.classList.remove('drawer-open');
+    document.querySelector('.session-backdrop')?.remove();
+    openProgress();
   });
 
-  const app = document.getElementById('app');
-  if (app) new MutationObserver(injectButton).observe(app, { childList:true, subtree:true });
-  injectButton();
+  new MutationObserver(inject).observe(document.documentElement, { childList:true, subtree:true });
+  inject();
 
   window.PRONABEC_PROGRESS_UI = { open:openProgress };
 })();
