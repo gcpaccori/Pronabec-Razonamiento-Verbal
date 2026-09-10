@@ -1,0 +1,34 @@
+/* Progress dashboard — intentionally absent from the exercise surface. */
+.progress-backdrop{position:fixed;inset:0;z-index:150;background:rgba(15,22,34,.42);display:flex;align-items:flex-end;justify-content:center;padding:0;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+.progress-sheet{width:100%;max-height:92vh;overflow:auto;background:#fff;border-radius:26px 26px 0 0;padding:14px 16px calc(22px + env(safe-area-inset-bottom));box-shadow:0 -24px 70px rgba(18,28,48,.2)}
+.progress-grabber{width:42px;height:4px;border-radius:999px;background:#d8dce3;margin:0 auto 14px}
+.progress-sheet-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:18px}
+.progress-kicker{font-size:.66rem;letter-spacing:.075em;text-transform:uppercase;font-weight:800;color:#6b7690;margin-bottom:4px}
+.progress-sheet h2{margin:0;font-size:1.28rem;line-height:1.22;letter-spacing:-.025em;color:#1f2732}
+.progress-close{width:38px;height:38px;border:0;border-radius:50%;background:#f1f3f6;color:#59616d;font-size:22px;cursor:pointer}
+.progress-hero{padding:18px;border-radius:21px;background:linear-gradient(145deg,#f4f7ff,#fbfcff);border:1px solid #e4e9f8;margin-bottom:12px}
+.progress-hero-row{display:flex;align-items:flex-end;justify-content:space-between;gap:14px}
+.progress-hero strong{font-size:2.45rem;line-height:.9;letter-spacing:-.055em;color:#243252}
+.progress-hero strong span{font-size:.88rem;letter-spacing:0;color:#69758e;font-weight:650}
+.progress-hero-copy{text-align:right;font-size:.77rem;line-height:1.45;color:#667087;max-width:16ch}
+.progress-track{height:8px;border-radius:999px;background:#e4e8f1;overflow:hidden;margin-top:15px}
+.progress-track>i{display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,#3767ff,#7a92ff)}
+.progress-caption{margin-top:8px;font-size:.72rem;color:#737c8c}
+.progress-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
+.progress-stat{padding:13px 11px;border-radius:16px;background:#f7f8fa;border:1px solid #eceef2}
+.progress-stat b{display:block;font-size:1.12rem;line-height:1.1;color:#26303d}
+.progress-stat span{display:block;margin-top:4px;font-size:.67rem;line-height:1.3;color:#7a828e}
+.progress-section{padding:15px;border:1px solid #eceef2;border-radius:18px;background:#fff;margin-top:10px}
+.progress-section-title{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:11px}
+.progress-section-title h3{margin:0;font-size:.88rem;letter-spacing:-.01em;color:#303844}
+.progress-section-title span{font-size:.68rem;color:#8a919c}
+.next-goal{padding:12px 13px;border-radius:14px;background:#fbfaf5;border:1px solid #eee8d7;color:#5f5949;font-size:.78rem;line-height:1.48}
+.next-goal b{color:#3f3a2f}
+.achievement-list{display:flex;gap:8px;overflow-x:auto;padding:1px 1px 4px;scrollbar-width:none}.achievement-list::-webkit-scrollbar{display:none}
+.achievement{min-width:138px;padding:12px;border-radius:15px;background:#f7f9fc;border:1px solid #e8ebf1}
+.achievement-icon{width:31px;height:31px;border-radius:10px;display:grid;place-items:center;background:#eaf0ff;color:#3157c8;font-size:15px;margin-bottom:8px}
+.achievement b{display:block;font-size:.76rem;color:#303845}.achievement span{display:block;margin-top:3px;font-size:.65rem;line-height:1.35;color:#7a8390}
+.session-mini{display:grid;gap:7px}.session-mini-row{display:grid;grid-template-columns:58px 1fr auto;gap:9px;align-items:center;padding:9px 0;border-top:1px solid #f0f1f3}.session-mini-row:first-child{border-top:0}.session-mini-row b{font-size:.71rem;color:#485264}.session-mini-row span{font-size:.69rem;color:#7c8490}.session-mini-row em{font-style:normal;font-size:.69rem;font-weight:750;color:#4f5c74}
+.progress-source{margin-top:13px;text-align:center;font-size:.63rem;color:#9aa0aa}
+.side-action[data-my-progress]{font-weight:800;color:#3156c8;background:#f5f7ff;border-color:#e2e8ff}
+@media(min-width:720px){.progress-backdrop{align-items:center;padding:24px}.progress-sheet{width:min(620px,100%);border-radius:26px;max-height:88vh;padding:18px 20px 24px}.progress-grabber{display:none}.progress-sheet-head{margin-top:2px}}
