@@ -186,6 +186,9 @@
     state.answers[q.id] = letter;
     saveProgress();
     render();
+    if (state.mode === 'practice' && letter !== q.correct_answer && window.PRONABEC_COACH?.coached?.has(q.id)) {
+      requestAnimationFrame(() => document.querySelector('.guided-context, .guided-prelude')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+    }
   }
 
   function move(delta) {
@@ -434,13 +437,15 @@
   }
 
   function renderContext(q) {
-  if (!q.context) return '';
-  const txt = q.context.text || '';
-  return `<section class="context">
-    <div class="context-head">${icon('book')}<h3>${esc(q.context.label || 'Texto de referencia')}</h3></div>
-    <div class="context-text">${esc(txt)}</div>
-  </section>`;
-}
+    if (!q.context) return '';
+    const txt = q.context.text || '';
+    const selected = state.answers[q.id];
+    const guided = isFeedbackVisible(q) && window.PRONABEC_COACH?.annotateContext?.(q, selected);
+    return `<section class="context ${guided ? 'guided-context' : ''}">
+      <div class="context-head">${icon('book')}<h3>${esc(q.context.label || 'Texto de referencia')}</h3>${guided ? '<span class="guided-badge">Lectura guiada</span>' : ''}</div>
+      <div class="context-text">${guided || esc(txt)}</div>
+    </section>`;
+  }
 
 function renderVisual(q) {
     if (!q.requires_visual) return '';
@@ -454,15 +459,15 @@ function renderVisual(q) {
   }
 
   function renderFeedback(q, selected, isCorrect) {
-  if (!isFeedbackVisible(q)) return '';
-  if (!selected) {
-    return `<div class="feedback neutral">${icon('grid')}<div>Sin respuesta. La alternativa correcta es <b>${esc(q.correct_answer)}</b>${q.correct_answer_text ? ` — ${esc(q.correct_answer_text)}` : ''}.</div></div>`;
+    if (!isFeedbackVisible(q)) return '';
+    if (!selected) {
+      return `<div class="feedback neutral">${icon('grid')}<div>Sin respuesta. La alternativa correcta es <b>${esc(q.correct_answer)}</b>${q.correct_answer_text ? ` — ${esc(q.correct_answer_text)}` : ''}.</div></div>`;
+    }
+    if (isCorrect) return `<div class="feedback ok">${icon('check')}<div><b>Respuesta correcta</b></div></div>`;
+    const inline = window.PRONABEC_COACH?.compactFeedback?.(q, selected);
+    if (inline) return inline;
+    return `<div class="feedback bad">${icon('x')}<div><b>Respuesta incorrecta</b> · La correcta es <b>${esc(q.correct_answer)}</b>${q.correct_answer_text ? ` — ${esc(q.correct_answer_text)}` : ''}</div></div>`;
   }
-  const basic = `<div class="feedback ${isCorrect ? 'ok' : 'bad'}">${icon(isCorrect ? 'check' : 'x')}<div><b>${isCorrect ? 'Respuesta correcta' : 'Respuesta incorrecta'}</b>${!isCorrect ? ` · La correcta es <b>${esc(q.correct_answer)}</b>${q.correct_answer_text ? ` — ${esc(q.correct_answer_text)}` : ''}` : ''}</div></div>`;
-  if (isCorrect) return basic;
-  const coach = window.PRONABEC_COACH?.build?.(q, selected) || '';
-  return basic + coach;
-}
 
 function renderQuestion() {
     const q = currentQ();
@@ -498,7 +503,7 @@ function renderQuestion() {
       ${renderContext(q)}
       ${renderVisual(q)}
       <div class="q-body">
-        ${q.prelude_text ? `<div class="prelude">${esc(q.prelude_text)}</div>` : ''}
+        ${q.prelude_text ? (window.PRONABEC_COACH?.annotatePrelude?.(q, selected) || `<div class="prelude">${esc(q.prelude_text)}</div>`) : ''}
         <p class="prompt">${esc(q.prompt)}</p>
         <div class="options">${options}</div>
         ${renderFeedback(q, selected, isCorrect)}
