@@ -11,6 +11,10 @@
   }[c]));
   const clean = s => String(s || '').replace(/\s+/g, ' ').trim();
   const norm = s => clean(s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const compact = (s, n = 94) => {
+    const v = clean(s);
+    return v.length > n ? v.slice(0, n).replace(/\s+\S*$/, '') + '…' : v;
+  };
   const STOP = new Set('a al algo ante bajo con contra cual cuales de del desde donde el ella en entre era es esa ese esta este esto fue ha hacia hay la las le les lo los mas me mi muy no o para pero porque que se si sin sobre son su sus un una uno unos unas y ya como cuando quien qué cuál cómo dónde más'.split(' '));
   const words = s => norm(s).split(/[^a-z0-9ñ]+/).filter(w => w.length > 2 && !STOP.has(w));
   const wordSet = s => new Set(words(s));
@@ -21,22 +25,25 @@
     for (const w of a) if (b.has(w)) hit++;
     return hit / Math.sqrt(a.size * b.size);
   };
-  const compact = (s, n = 54) => {
-    const v = clean(s);
-    return v.length > n ? v.slice(0, n).replace(/\s+\S*$/, '') + '…' : v;
+  const sharedTerms = (a, b, limit = 3) => {
+    const bs = wordSet(b);
+    return [...new Set(words(a).filter(w => bs.has(w)))].slice(0, limit);
   };
-  const keyWords = (s, n = 3) => [...new Set(words(s))].slice(0, n);
 
   function skill(q) {
     const p = norm(q.prompt), t = norm(q.topic?.title);
     if (/idea (principal|central)|resume|tema central|medularmente/.test(p)) return 'main';
     if (/infiere|deduce|concluir|conclusion/.test(p)) return 'infer';
-    if (/incompatible|incorrect|no se puede/.test(p)) return 'falsify';
+    if (/incompatible|incorrect|no se puede|no corresponde/.test(p)) return 'falsify';
     if (/sinonim|significa|sentido|termino/.test(p) || t.includes('sinonimia')) return 'meaning';
     if (/antonim|opuesto/.test(p) || t.includes('antonimia')) return 'opposite';
     if (/tipo de texto|texto es|clasifica/.test(p) || t.includes('tipos de textos')) return 'type';
     if (/proposito|finalidad|intencion|para que/.test(p)) return 'purpose';
     return 'evidence';
+  }
+
+  function answerText(q, letter) {
+    return (q.alternatives || []).find(a => a.letter === letter)?.text || '';
   }
 
   function sentenceRanges(text) {
@@ -54,7 +61,7 @@
 
   function cueBonus(text, kind) {
     const n = norm(text);
-    if (kind === 'contrast' && /\b(sin embargo|pero|aunque|no obstante|en cambio|a diferencia|solo|unicamente)\b/.test(n)) return .3;
+    if (kind === 'trap' && /\b(sin embargo|pero|aunque|no obstante|en cambio|a diferencia|solo|unicamente|excepto)\b/.test(n)) return .3;
     if (kind === 'bridge' && /\b(por ello|por tanto|asi|entonces|porque|debido|de modo que|en consecuencia)\b/.test(n)) return .2;
     return 0;
   }
@@ -63,39 +70,45 @@
     return !!(q && coached.has(q.id) && selectedLetter && selectedLetter !== q.correct_answer);
   }
 
-  function questionCue(q, selected, kind, sentence) {
+  function truthReason(q, evidence, selectedLetter) {
     const s = skill(q);
-    const demand = compact(q.prompt, 66);
-    const wrongKeys = keyWords(selected, 2).join(' / ') || 'tu alternativa';
-    const sentenceKeys = keyWords(sentence, 3).join(' · ');
+    const correct = answerText(q, q.correct_answer) || q.correct_answer_text || '';
+    const selected = answerText(q, selectedLetter) || '';
+    const terms = sharedTerms(evidence, correct, 3);
+    const anchor = terms.length ? `Fíjate en «${terms.join(' · ')}».` : 'Compara sujeto, relación y alcance.';
 
-    if (kind === 'key') {
-      if (s === 'main') return `¿Esta frase explica también los otros párrafos, o solo uno?`;
-      if (s === 'infer') return `¿Qué conclusión sale de «${sentenceKeys}» sin agregar nada externo?`;
-      if (s === 'falsify') return `¿Qué opción no puede convivir con esta afirmación?`;
-      if (s === 'meaning') return `Sustituye la palabra en esta misma frase: ¿qué sentido se conserva?`;
-      if (s === 'opposite') return `¿Cuál es el eje que esta frase permite invertir exactamente?`;
-      if (s === 'type') return `¿Qué está haciendo aquí el autor: narrar, explicar, sostener o indicar?`;
-      if (s === 'purpose') return `Después de leer esto, ¿qué quiere que el lector comprenda o haga?`;
-      return `La pregunta exige «${demand}». ¿Qué palabra de esta frase la responde?`;
-    }
+    if (s === 'main') return `La ${q.correct_answer} recoge una idea que puede organizar esta evidencia y el resto del texto; tu ${selectedLetter} reduce o desplaza ese eje. ${anchor}`;
+    if (s === 'infer') return `La ${q.correct_answer} sale de esta evidencia sin añadir una premisa externa; tu ${selectedLetter} necesita un salto que el texto no entrega. ${anchor}`;
+    if (s === 'falsify') return `La ${q.correct_answer} es la que falla al contrastarla con esta evidencia; las demás pueden convivir con lo dicho. ${anchor}`;
+    if (s === 'meaning') return `La ${q.correct_answer} conserva el sentido que la palabra tiene dentro de esta oración; tu ${selectedLetter} puede ser cercana fuera del contexto, pero aquí altera la relación. ${anchor}`;
+    if (s === 'opposite') return `La ${q.correct_answer} invierte el rasgo semántico que funciona en esta frase; tu ${selectedLetter} cambia de palabra sin invertir exactamente ese eje. ${anchor}`;
+    if (s === 'type') return `La ${q.correct_answer} coincide con la función que cumple este fragmento; el tema por sí solo no determina el tipo de texto. ${anchor}`;
+    if (s === 'purpose') return `La ${q.correct_answer} expresa para qué está construida esta parte del texto; tu ${selectedLetter} describe contenido, pero no necesariamente la intención. ${anchor}`;
+    return `La ${q.correct_answer} coincide con esta evidencia en lo esencial; tu ${selectedLetter} cambia al menos una relación o el alcance. ${anchor}`;
+  }
 
-    if (kind === 'trap') {
-      if (s === 'main') return `Tu opción recoge «${wrongKeys}». ¿Es el eje del texto o solo un detalle verdadero?`;
-      if (s === 'infer') return `Tu opción usa «${wrongKeys}». ¿El texto da ese paso o lo estás completando tú?`;
-      if (s === 'falsify') return `Compara «${wrongKeys}» con esta frase. ¿Confirma, invierte o exagera?`;
-      if (s === 'meaning' || s === 'opposite') return `¿«${wrongKeys}» mantiene la relación exacta de esta oración?`;
-      return `Tu opción se apoya en «${wrongKeys}». ¿Coincide con la función de esta parte o solo con sus palabras?`;
-    }
+  function keyNote(q, evidence) {
+    const correct = compact(answerText(q, q.correct_answer) || q.correct_answer_text || '', 88);
+    return `Sostiene ${q.correct_answer}: «${correct}». ¿Qué relación exacta entre esta frase y esa opción hace que encajen?`;
+  }
 
-    return `Une esta frase con la resaltada: ¿la relación es causa, contraste, consecuencia o ejemplo?`;
+  function trapNote(q, selectedLetter, sentence) {
+    const selected = compact(answerText(q, selectedLetter), 74);
+    const s = skill(q);
+    if (s === 'main') return `Tu ${selectedLetter}: «${selected}». ¿Es el eje global o un detalle que sí aparece pero no resume todo?`;
+    if (s === 'infer') return `Tu ${selectedLetter}: «${selected}». ¿Qué parte de esta frase autoriza exactamente esa conclusión?`;
+    if (s === 'falsify') return `Tu ${selectedLetter}: «${selected}». ¿Esta frase realmente la contradice o todavía puede ser verdadera?`;
+    if (s === 'meaning' || s === 'opposite') return `Tu ${selectedLetter}: «${selected}». Sustitúyela aquí: ¿la oración conserva la misma relación?`;
+    if (s === 'purpose') return `Tu ${selectedLetter}: «${selected}». ¿Describe lo que dice o lo que el autor busca lograr?`;
+    const terms = sharedTerms(sentence, selected, 2);
+    return `Tu ${selectedLetter}: «${selected}». ${terms.length ? `Comparte «${terms.join(' · ')}», pero` : 'Aunque parece cercana,'} ¿mantiene la misma relación y alcance?`;
   }
 
   function pickMarks(text, q, selectedLetter) {
     const ranges = sentenceRanges(text);
     if (!ranges.length) return [];
-    const selected = (q.alternatives || []).find(a => a.letter === selectedLetter)?.text || '';
-    const correct = (q.alternatives || []).find(a => a.letter === q.correct_answer)?.text || q.correct_answer_text || '';
+    const selected = answerText(q, selectedLetter);
+    const correct = answerText(q, q.correct_answer) || q.correct_answer_text || '';
     const goodTarget = `${q.prompt || ''} ${correct}`;
     const wrongTarget = `${q.prompt || ''} ${selected}`;
 
@@ -105,13 +118,13 @@
       good: overlap(r.text, goodTarget),
       wrong: overlap(r.text, wrongTarget),
       bridge: overlap(r.text, q.prompt || '') + cueBonus(r.text, 'bridge'),
-      contrast: cueBonus(r.text, 'contrast')
+      trap: cueBonus(r.text, 'trap')
     }));
 
     const key = scored.reduce((a,b) => b.good > a.good ? b : a, scored[0]);
     const remaining = scored.filter(r => r.i !== key.i);
-    let trap = remaining.length ? remaining.reduce((a,b) => (b.wrong + b.contrast) > (a.wrong + a.contrast) ? b : a, remaining[0]) : null;
-    if (trap && trap.wrong + trap.contrast < .1) trap = null;
+    let trap = remaining.length ? remaining.reduce((a,b) => (b.wrong + b.trap) > (a.wrong + a.trap) ? b : a, remaining[0]) : null;
+    if (trap && trap.wrong + trap.trap < .1) trap = null;
 
     let second = trap;
     let kind = 'trap';
@@ -121,8 +134,15 @@
       if (second.bridge < .08) second = scored.find(r => Math.abs(r.i - key.i) === 1) || null;
     }
 
-    const marks = [{...key, kind:'key', label:'Mira aquí', note:questionCue(q, selected, 'key', key.text)}];
-    if (second) marks.push({...second, kind, label:kind === 'trap' ? 'Contrasta' : 'Conecta', note:questionCue(q, selected, kind, second.text)});
+    const marks = [{ ...key, kind:'key', label:`Por qué ${q.correct_answer}`, note:keyNote(q, key.text) }];
+    if (second) {
+      marks.push({
+        ...second,
+        kind,
+        label:kind === 'trap' ? `Tu ${selectedLetter}` : 'Conecta',
+        note:kind === 'trap' ? trapNote(q, selectedLetter, second.text) : 'Une esta frase con la verde: ¿la relación es causa, contraste, consecuencia o ejemplo?'
+      });
+    }
     return marks.sort((a,b) => a.start - b.start);
   }
 
@@ -155,7 +175,17 @@
 
   function compactFeedback(q, selectedLetter) {
     if (!isCoachedWrong(q, selectedLetter)) return '';
-    return `<div class="feedback feedback-return"><b>Pista activa.</b> Lee solo lo resaltado y vuelve a elegir.</div>`;
+    const source = q.context?.text || q.prelude_text || '';
+    const marks = source ? pickMarks(source, q, selectedLetter) : [];
+    const evidence = marks.find(m => m.kind === 'key')?.text || '';
+    const correct = compact(answerText(q, q.correct_answer) || q.correct_answer_text || '', 96);
+    const selected = compact(answerText(q, selectedLetter), 78);
+
+    if (!source) {
+      return `<div class="feedback feedback-return feedback-truth"><b>Correcta ${esc(q.correct_answer)}:</b> ${esc(correct)}<span>Tu ${esc(selectedLetter)}: ${esc(selected)}. Compara la relación exacta que pide el enunciado, no solo palabras parecidas.</span></div>`;
+    }
+
+    return `<div class="feedback feedback-return feedback-truth"><b>Correcta ${esc(q.correct_answer)}:</b> ${esc(correct)}<span>${esc(truthReason(q, evidence, selectedLetter))}</span></div>`;
   }
 
   window.PRONABEC_COACH = { coached, isCoachedWrong, annotateContext, annotatePrelude, compactFeedback };
