@@ -33,8 +33,6 @@ body{font-family:var(--reading-font);font-feature-settings:"kern" 1,"liga" 1;tex
 .guided-context .context-text{color:#8c929b}
 .smart-reading{display:inline;color:inherit}
 .smart-hl{
-  position:relative;
-  z-index:0;
   color:#202832;
   font-weight:540;
   border-radius:.34em;
@@ -44,17 +42,9 @@ body{font-family:var(--reading-font);font-feature-settings:"kern" 1,"liga" 1;tex
   box-decoration-break:clone;
   transition:filter .2s ease,background .2s ease;
 }
-.smart-hl::before{
-  content:"";
-  position:absolute;
-  z-index:-1;
-  inset:44% -.06em .02em;
-  border-radius:.3em;
-  filter:saturate(.95);
-}
-.hl-key::before{background:linear-gradient(90deg,rgba(86,219,152,.22),rgba(86,219,152,.5) 25%,rgba(86,219,152,.33))}
-.hl-bridge::before{background:linear-gradient(90deg,rgba(90,150,255,.18),rgba(90,150,255,.46) 28%,rgba(90,150,255,.28))}
-.hl-trap::before{background:linear-gradient(90deg,rgba(255,194,77,.18),rgba(255,194,77,.5) 30%,rgba(255,194,77,.28))}
+.hl-key{background:linear-gradient(180deg,transparent 0 40%,rgba(86,219,152,.38) 40% 94%,transparent 94%)}
+.hl-bridge{background:linear-gradient(180deg,transparent 0 40%,rgba(90,150,255,.34) 40% 94%,transparent 94%)}
+.hl-trap{background:linear-gradient(180deg,transparent 0 40%,rgba(255,194,77,.4) 40% 94%,transparent 94%)}
 
 /* Microexplicación anclada a la misma lectura: sin paneles separados. */
 .smart-note{
