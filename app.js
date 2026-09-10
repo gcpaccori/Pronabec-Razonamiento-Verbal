@@ -1,190 +1,633 @@
 (() => {
   'use strict';
-  const APP_VERSION = '1.0.0';
+
+  const APP_VERSION = '2.0.0';
   const app = document.getElementById('app');
   const fileInput = document.getElementById('jsonFile');
-  let DATA = window.PRONABEC_DATA || {topics:[]};
+  let DATA = window.PRONABEC_DATA || { topics: [] };
   const PAGE_IMAGES = window.PRONABEC_PAGE_IMAGES || {};
 
   const state = {
-    topicId: 'all', search: '', mode: 'practice', current: 0,
-    answers: {}, marked: {}, order: [], contextExpanded: false,
-    examSubmitted: false, datasetName: DATA?.metadata?.title || 'PRONABEC Razonamiento Verbal'
+    topicId: 'all',
+    search: '',
+    mode: 'practice',
+    current: 0,
+    answers: {},
+    marked: {},
+    contextExpanded: false,
+    examSubmitted: false,
+    datasetName: DATA?.metadata?.title || DATA?.metadata?.dataset || 'PRONABEC Razonamiento Verbal'
   };
 
-  function storageKey(){
-    const total = flattenAll().length;
-    return `pronabec-sim-v1-${total}`;
+  const ICONS = {
+    menu: '<path d="M4 7h16M4 12h16M4 17h16"/>',
+    close: '<path d="m6 6 12 12M18 6 6 18"/>',
+    search: '<circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/>',
+    chevronLeft: '<path d="m15 18-6-6 6-6"/>',
+    chevronRight: '<path d="m9 18 6-6-6-6"/>',
+    bookmark: '<path d="M6.5 4.5A1.5 1.5 0 0 1 8 3h8a1.5 1.5 0 0 1 1.5 1.5V21L12 17.5 6.5 21Z"/>',
+    check: '<path d="m5 12 4 4L19 6"/>',
+    x: '<path d="m7 7 10 10M17 7 7 17"/>',
+    file: '<path d="M7 3h7l4 4v14H7z"/><path d="M14 3v5h5"/>',
+    reset: '<path d="M4 12a8 8 0 1 0 2.3-5.7L4 8.6"/><path d="M4 4v4.6h4.6"/>',
+    chart: '<path d="M5 20V10M12 20V4M19 20v-7"/>',
+    grid: '<rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><rect x="14" y="14" width="6" height="6" rx="1"/>',
+    book: '<path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H11v16H6.5A2.5 2.5 0 0 0 4 21.5z"/><path d="M20 5.5A2.5 2.5 0 0 0 17.5 3H13v16h4.5a2.5 2.5 0 0 1 2.5 2.5z"/>',
+    image: '<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10" r="1.5"/><path d="m5 17 4-4 3 3 2-2 5 3"/>',
+    upload: '<path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5"/><path d="M5 14v5h14v-5"/>'
+  };
+
+  function icon(name, cls = '') {
+    return `<svg class="icon ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICONS[name] || ''}</svg>`;
   }
-  function loadProgress(){
+
+  function storageKey() {
+    return `pronabec-sim-v2-${flattenAll().length}`;
+  }
+
+  function legacyStorageKey() {
+    return `pronabec-sim-v1-${flattenAll().length}`;
+  }
+
+  function loadProgress() {
     try {
-      const saved = JSON.parse(localStorage.getItem(storageKey()) || '{}');
+      const raw = localStorage.getItem(storageKey()) || localStorage.getItem(legacyStorageKey()) || '{}';
+      const saved = JSON.parse(raw);
       state.answers = saved.answers || {};
       state.marked = saved.marked || {};
       state.mode = saved.mode || 'practice';
-    } catch(_) {}
+    } catch (_) {}
   }
-  function saveProgress(){
-    try { localStorage.setItem(storageKey(), JSON.stringify({answers:state.answers,marked:state.marked,mode:state.mode})); } catch(_) {}
+
+  function saveProgress() {
+    try {
+      localStorage.setItem(storageKey(), JSON.stringify({
+        answers: state.answers,
+        marked: state.marked,
+        mode: state.mode
+      }));
+    } catch (_) {}
   }
-  function esc(s=''){ return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c])); }
-  function norm(s=''){ return String(s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,''); }
-  function flattenAll(){
-    return (DATA.topics||[]).flatMap(t => (t.questions||[]).map(q => ({...q, topic:t, context:(t.contexts||[]).find(c=>String(c.id)===String(q.context_id))||null})));
+
+  function esc(s = '') {
+    return String(s).replace(/[&<>"']/g, c => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
+    }[c]));
   }
-  function filtered(){
+
+  function norm(s = '') {
+    return String(s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  }
+
+  function flattenAll() {
+    return (DATA.topics || []).flatMap(t =>
+      (t.questions || []).map(q => ({
+        ...q,
+        topic: t,
+        context: (t.contexts || []).find(c => String(c.id) === String(q.context_id)) || null
+      }))
+    );
+  }
+
+  function filtered() {
     let qs = flattenAll();
-    if(state.topicId !== 'all') qs = qs.filter(q => String(q.topic_id) === String(state.topicId));
-    const s=norm(state.search.trim());
-    if(s) qs=qs.filter(q => norm([q.id,q.prompt,q.prelude_text,q.context?.text,...(q.alternatives||[]).map(a=>a.text)].join(' ')).includes(s));
+    if (state.topicId !== 'all') qs = qs.filter(q => String(q.topic_id) === String(state.topicId));
+    const s = norm(state.search.trim());
+    if (s) {
+      qs = qs.filter(q => norm([
+        q.id,
+        q.prompt,
+        q.prelude_text,
+        q.context?.text,
+        ...(q.alternatives || []).map(a => a.text)
+      ].join(' ')).includes(s));
+    }
     return qs;
   }
-  function currentQuestions(){ return filtered(); }
-  function currentQ(){ const qs=currentQuestions(); if(!qs.length)return null; state.current=Math.max(0,Math.min(state.current,qs.length-1)); return qs[state.current]; }
-  function answeredCount(qs=currentQuestions()){ return qs.filter(q => state.answers[q.id]).length; }
-  function correctCount(qs=currentQuestions()){ return qs.filter(q => state.answers[q.id] && state.answers[q.id]===q.correct_answer).length; }
-  function scorePct(qs=currentQuestions()){ const ans=answeredCount(qs); return ans?Math.round(correctCount(qs)*100/ans):0; }
-  function isFeedbackVisible(q){ return state.mode==='practice' ? !!state.answers[q.id] : state.examSubmitted; }
-  function pageRange(q){
-    const a=Number(q.original_page_start||0), b=Number(q.original_page_end||a); const out=[];
-    for(let p=a;p<=b;p++) if(PAGE_IMAGES[p]) out.push(p); return out;
+
+  function currentQuestions() { return filtered(); }
+
+  function currentQ() {
+    const qs = currentQuestions();
+    if (!qs.length) return null;
+    state.current = Math.max(0, Math.min(state.current, qs.length - 1));
+    return qs[state.current];
   }
-  function toast(msg){
-    const old=document.querySelector('.toast'); if(old)old.remove();
-    const d=document.createElement('div'); d.className='toast'; d.textContent=msg; document.body.appendChild(d); setTimeout(()=>d.remove(),2600);
+
+  function currentTopic() {
+    return state.topicId === 'all'
+      ? null
+      : (DATA.topics || []).find(x => String(x.id) === String(state.topicId));
   }
-  function setTopic(id){ state.topicId=id; state.current=0; state.examSubmitted=false; render(); }
-  function setMode(mode){ state.mode=mode; state.examSubmitted=false; saveProgress(); render(); }
-  function choose(letter){
-    const q=currentQ(); if(!q)return;
-    if(state.mode==='exam' && state.examSubmitted) return;
-    state.answers[q.id]=letter; saveProgress(); renderQuestionArea();
+
+  function sectionTitle() {
+    const t = currentTopic();
+    return t ? `${t.topic_number}. ${t.title}` : 'Todos los ejercicios';
   }
-  function move(delta){ const qs=currentQuestions(); if(!qs.length)return; state.current=Math.max(0,Math.min(qs.length-1,state.current+delta)); state.contextExpanded=false; render(); window.scrollTo({top:0,behavior:'smooth'}); }
-  function jump(i){ state.current=i; state.contextExpanded=false; render(); window.scrollTo({top:0,behavior:'smooth'}); }
-  function toggleMark(){ const q=currentQ(); if(!q)return; state.marked[q.id]=!state.marked[q.id]; if(!state.marked[q.id]) delete state.marked[q.id]; saveProgress(); renderQuestionArea(); }
-  function resetProgress(){ if(!confirm('¿Borrar todas tus respuestas y marcadores?'))return; state.answers={};state.marked={};state.examSubmitted=false;saveProgress();render();toast('Progreso reiniciado'); }
-  function submitExam(){
-    const qs=currentQuestions(); if(!qs.length)return;
-    const n=answeredCount(qs); if(n<qs.length && !confirm(`Has respondido ${n} de ${qs.length}. ¿Finalizar de todos modos?`))return;
-    state.examSubmitted=true; render(); showResults();
+
+  function answeredCount(qs = currentQuestions()) {
+    return qs.filter(q => state.answers[q.id]).length;
   }
-  function showResults(){
-    const qs=currentQuestions(), good=correctCount(qs), answered=answeredCount(qs), pct=qs.length?Math.round(good*100/qs.length):0;
-    const rows=qs.map((q,i)=>{
-      const a=state.answers[q.id]||'—', ok=a===q.correct_answer;
-      return `<div class="result-row ${ok?'good':'bad'}"><b>${esc(q.id)}</b><span>${ok?'Correcta':'Tu respuesta: '+esc(a)+' · Correcta: '+esc(q.correct_answer)}</span><button class="btn compact" data-jump-result="${i}">Ver</button></div>`;
+
+  function correctCount(qs = currentQuestions()) {
+    return qs.filter(q => state.answers[q.id] && state.answers[q.id] === q.correct_answer).length;
+  }
+
+  function scorePct(qs = currentQuestions()) {
+    const ans = answeredCount(qs);
+    return ans ? Math.round(correctCount(qs) * 100 / ans) : 0;
+  }
+
+  function isFeedbackVisible(q) {
+    return state.mode === 'practice' ? !!state.answers[q.id] : state.examSubmitted;
+  }
+
+  function pageRange(q) {
+    const a = Number(q.original_page_start || 0);
+    const b = Number(q.original_page_end || a);
+    const out = [];
+    for (let p = a; p <= b; p++) if (PAGE_IMAGES[p]) out.push(p);
+    return out;
+  }
+
+  function toast(msg) {
+    document.querySelector('.toast')?.remove();
+    const d = document.createElement('div');
+    d.className = 'toast';
+    d.textContent = msg;
+    document.body.appendChild(d);
+    setTimeout(() => d.remove(), 2400);
+  }
+
+  function openDrawer() { document.body.classList.add('drawer-open'); }
+  function closeDrawer() { document.body.classList.remove('drawer-open'); }
+
+  function setTopic(id) {
+    closeDrawer();
+    state.topicId = id;
+    state.current = 0;
+    state.examSubmitted = false;
+    state.contextExpanded = false;
+    render();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function setMode(mode) {
+    state.mode = mode;
+    state.examSubmitted = false;
+    saveProgress();
+    render();
+  }
+
+  function choose(letter) {
+    const q = currentQ();
+    if (!q) return;
+    if (state.mode === 'exam' && state.examSubmitted) return;
+    state.answers[q.id] = letter;
+    saveProgress();
+    render();
+  }
+
+  function move(delta) {
+    const qs = currentQuestions();
+    if (!qs.length) return;
+    state.current = Math.max(0, Math.min(qs.length - 1, state.current + delta));
+    state.contextExpanded = false;
+    render();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function jump(i) {
+    state.current = i;
+    state.contextExpanded = false;
+    closeDrawer();
+    document.querySelector('.modal-backdrop')?.remove();
+    render();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function toggleMark() {
+    const q = currentQ();
+    if (!q) return;
+    state.marked[q.id] = !state.marked[q.id];
+    if (!state.marked[q.id]) delete state.marked[q.id];
+    saveProgress();
+    render();
+  }
+
+  function resetProgress() {
+    if (!confirm('¿Borrar todas tus respuestas y preguntas marcadas?')) return;
+    state.answers = {};
+    state.marked = {};
+    state.examSubmitted = false;
+    saveProgress();
+    render();
+    toast('Progreso reiniciado');
+  }
+
+  function submitExam() {
+    const qs = currentQuestions();
+    if (!qs.length) return;
+    const n = answeredCount(qs);
+    if (n < qs.length && !confirm(`Has respondido ${n} de ${qs.length}. ¿Finalizar de todos modos?`)) return;
+    state.examSubmitted = true;
+    render();
+    showResults();
+  }
+
+  function resultRows(qs) {
+    return qs.map((q, i) => {
+      const a = state.answers[q.id] || '—';
+      const ok = a === q.correct_answer;
+      return `<div class="result-row ${ok ? 'good' : 'bad'}">
+        <b>${esc(q.id)}</b>
+        <div class="result-status">${ok ? 'Respuesta correcta' : `Elegiste ${esc(a)} · Correcta ${esc(q.correct_answer)}`}</div>
+        <button class="btn compact" type="button" data-jump-result="${i}">Ver</button>
+      </div>`;
     }).join('');
-    const modal=document.createElement('div'); modal.className='modal-backdrop'; modal.innerHTML=`<div class="modal">
-      <div class="modal-head"><div><b>Resultados</b><div class="score-sub">${answered}/${qs.length} respondidas</div></div><button class="btn compact" data-close-modal>✕</button></div>
-      <div class="modal-body"><div class="score-big">${pct}%</div><div class="score-sub">${good} correctas de ${qs.length} preguntas</div><div class="result-list">${rows}</div></div>
-      <div class="modal-actions"><button class="btn" data-export>Exportar resultados</button><button class="btn primary" data-close-modal>Cerrar</button></div>
+  }
+
+  function showResults() {
+    const qs = currentQuestions();
+    const good = correctCount(qs);
+    const answered = answeredCount(qs);
+    const pct = qs.length ? Math.round(good * 100 / qs.length) : 0;
+    const modal = document.createElement('div');
+    modal.className = 'modal-backdrop';
+    modal.innerHTML = `<div class="modal" role="dialog" aria-modal="true" aria-label="Resultados">
+      <div class="modal-grabber"></div>
+      <div class="modal-head">
+        <div><div class="modal-title">Tus resultados</div><div class="score-sub">${answered} de ${qs.length} respondidas</div></div>
+        <button class="icon-btn" type="button" data-close-modal aria-label="Cerrar">${icon('close')}</button>
+      </div>
+      <div class="modal-body">
+        <div class="score-panel">
+          <div><div class="score-big">${pct}%</div><div class="score-sub">puntaje sobre el total</div></div>
+          <div class="score-caption"><b>${good} correctas</b>${qs.length - good} por mejorar</div>
+        </div>
+        <div class="result-list">${resultRows(qs)}</div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn" type="button" data-export>${icon('upload')} Exportar</button>
+        <button class="btn primary" type="button" data-close-modal>Cerrar</button>
+      </div>
     </div>`;
     document.body.appendChild(modal);
-    modal.addEventListener('click',e=>{
-      if(e.target===modal || e.target.closest('[data-close-modal]')) modal.remove();
-      const j=e.target.closest('[data-jump-result]'); if(j){ state.current=Number(j.dataset.jumpResult); modal.remove(); render(); }
-      if(e.target.closest('[data-export]')) exportResults();
+    modal.addEventListener('click', e => {
+      if (e.target === modal || e.target.closest('[data-close-modal]')) modal.remove();
+      const j = e.target.closest('[data-jump-result]');
+      if (j) jump(Number(j.dataset.jumpResult));
+      if (e.target.closest('[data-export]')) exportResults();
     });
   }
-  function exportResults(){
-    const qs=currentQuestions();
-    const out={generated_at:new Date().toISOString(),mode:state.mode,topic:state.topicId,score:{correct:correctCount(qs),answered:answeredCount(qs),total:qs.length,percent:qs.length?Math.round(correctCount(qs)*100/qs.length):0},answers:qs.map(q=>({id:q.id,selected:state.answers[q.id]||null,correct:q.correct_answer,is_correct:state.answers[q.id]===q.correct_answer}))};
-    const blob=new Blob([JSON.stringify(out,null,2)],{type:'application/json'}), a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='resultado_pronabec.json';a.click();URL.revokeObjectURL(a.href);
+
+  function showNavigator() {
+    const qs = currentQuestions();
+    if (!qs.length) return;
+    const modal = document.createElement('div');
+    modal.className = 'modal-backdrop';
+    modal.innerHTML = `<div class="modal" role="dialog" aria-modal="true" aria-label="Mapa de preguntas">
+      <div class="modal-grabber"></div>
+      <div class="modal-head">
+        <div><div class="modal-title">Mapa de preguntas</div><div class="score-sub">Toca un número para ir directamente</div></div>
+        <button class="icon-btn" type="button" data-close-modal aria-label="Cerrar">${icon('close')}</button>
+      </div>
+      <div class="modal-body">
+        <div class="drawer-nav-grid">${renderNavButtons(qs, 'data-nav-jump')}</div>
+        <div class="legend"><span><i class="dot a"></i>Respondida</span><span><i class="dot m"></i>Marcada</span></div>
+      </div>
+    </div>`;
+    document.body.appendChild(modal);
+    modal.addEventListener('click', e => {
+      if (e.target === modal || e.target.closest('[data-close-modal]')) modal.remove();
+      const n = e.target.closest('[data-nav-jump]');
+      if (n) jump(Number(n.dataset.navJump));
+    });
   }
-  function importJSON(file){
-    const r=new FileReader(); r.onload=()=>{
-      try{ const d=JSON.parse(r.result); if(!d || !Array.isArray(d.topics)) throw new Error('Estructura no compatible'); DATA=d; state.topicId='all';state.current=0;state.answers={};state.marked={};state.examSubmitted=false;state.datasetName=file.name; render();toast(`JSON cargado: ${file.name}`); }
-      catch(e){ alert('No se pudo cargar el JSON: '+e.message); }
-    }; r.readAsText(file,'utf-8');
+
+  function exportResults() {
+    const qs = currentQuestions();
+    const out = {
+      generated_at: new Date().toISOString(),
+      app_version: APP_VERSION,
+      mode: state.mode,
+      topic: state.topicId,
+      score: {
+        correct: correctCount(qs),
+        answered: answeredCount(qs),
+        total: qs.length,
+        percent: qs.length ? Math.round(correctCount(qs) * 100 / qs.length) : 0
+      },
+      answers: qs.map(q => ({
+        id: q.id,
+        selected: state.answers[q.id] || null,
+        correct: q.correct_answer,
+        is_correct: state.answers[q.id] === q.correct_answer
+      }))
+    };
+    const blob = new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'resultado_pronabec.json';
+    a.click();
+    URL.revokeObjectURL(a.href);
   }
-  function renderSidebar(){
-    const topics=DATA.topics||[];
-    return `<aside class="sidebar">
-      <div class="brand"><div class="brand-badge">P</div><div><h1>Simulador PRONABEC</h1><small>Razonamiento Verbal</small></div></div>
-      <input id="searchInput" class="search" value="${esc(state.search)}" placeholder="Buscar pregunta, texto...">
-      <div class="side-section"><div class="side-title">Temas</div><div class="topic-list">
-        <button class="topic-btn ${state.topicId==='all'?'active':''}" data-topic="all"><span>Todos los ejercicios</span><span class="count-pill">${flattenAll().length}</span></button>
-        ${topics.map(t=>`<button class="topic-btn ${String(state.topicId)===String(t.id)?'active':''}" data-topic="${esc(t.id)}"><span>${esc(t.topic_number+'. '+t.title)}</span><span class="count-pill">${(t.questions||[]).length}</span></button>`).join('')}
-      </div></div>
-      <div class="side-actions"><button data-load-json>📂 Cargar otro JSON</button><button data-reset>↺ Reiniciar progreso</button></div>
+
+  function importJSON(file) {
+    const r = new FileReader();
+    r.onload = () => {
+      try {
+        const d = JSON.parse(r.result);
+        if (!d || !Array.isArray(d.topics)) throw new Error('Estructura no compatible');
+        DATA = d;
+        state.topicId = 'all';
+        state.current = 0;
+        state.answers = {};
+        state.marked = {};
+        state.examSubmitted = false;
+        state.datasetName = file.name;
+        closeDrawer();
+        render();
+        toast(`Base cargada: ${file.name}`);
+      } catch (e) {
+        alert('No se pudo cargar el JSON: ' + e.message);
+      }
+    };
+    r.readAsText(file, 'utf-8');
+  }
+
+  function renderSidebar() {
+    const topics = DATA.topics || [];
+    return `<aside class="sidebar" aria-label="Menú principal">
+      <div class="sidebar-head">
+        <div class="brand">
+          <div class="brand-badge">P</div>
+          <div class="brand-copy"><h1>Simulador PRONABEC</h1><small>Razonamiento Verbal</small></div>
+        </div>
+        <button class="icon-btn sidebar-close" type="button" data-close-drawer aria-label="Cerrar menú">${icon('close')}</button>
+      </div>
+
+      <div class="search-wrap">
+        <span class="search-icon">${icon('search')}</span>
+        <input id="searchInput" class="search" value="${esc(state.search)}" placeholder="Buscar pregunta o texto" autocomplete="off">
+      </div>
+
+      <div class="side-section">
+        <div class="side-title"><span>Temas</span><span>${topics.length}</span></div>
+        <div class="topic-list">
+          <button class="topic-btn ${state.topicId === 'all' ? 'active' : ''}" type="button" data-topic="all">
+            <span class="topic-copy">Todos los ejercicios</span><span class="count-pill">${flattenAll().length}</span>
+          </button>
+          ${topics.map(t => `<button class="topic-btn ${String(state.topicId) === String(t.id) ? 'active' : ''}" type="button" data-topic="${esc(t.id)}">
+            <span class="topic-copy">${esc(t.topic_number + '. ' + t.title)}</span><span class="count-pill">${(t.questions || []).length}</span>
+          </button>`).join('')}
+        </div>
+      </div>
+
+      <div class="side-actions">
+        <button class="side-action" type="button" data-open-navigator>${icon('grid')} Mapa de preguntas</button>
+        ${state.mode === 'exam' && !state.examSubmitted ? `<button class="side-action" type="button" data-submit>${icon('check')} Finalizar examen</button>` : `<button class="side-action" type="button" data-results>${icon('chart')} Ver resultados</button>`}
+        <button class="side-action" type="button" data-load-json>${icon('file')} Cargar otro JSON</button>
+        <button class="side-action danger" type="button" data-reset>${icon('reset')} Reiniciar progreso</button>
+      </div>
     </aside>`;
   }
-  function renderHeader(){
-    const qs=currentQuestions(), t=state.topicId==='all'?null:(DATA.topics||[]).find(x=>String(x.id)===String(state.topicId));
-    const title=t?`${t.topic_number}. ${t.title}`:'Todos los ejercicios';
-    return `<div class="topbar"><div class="topbar-left"><div class="eyebrow">${esc(state.datasetName)}</div><h2>${esc(title)}</h2></div>
-      <div class="top-actions"><div class="mode-switch"><button data-mode="practice" class="${state.mode==='practice'?'active':''}">Práctica</button><button data-mode="exam" class="${state.mode==='exam'?'active':''}">Examen</button></div>
-      ${state.mode==='exam'?'<button class="btn primary" data-submit>Finalizar examen</button>':'<button class="btn" data-results>Ver resultados</button>'}</div></div>
-      <div class="stats"><div class="stat"><b>${qs.length}</b><span>Preguntas</span></div><div class="stat"><b>${answeredCount(qs)}</b><span>Respondidas</span></div><div class="stat"><b>${state.mode==='exam'&&!state.examSubmitted?'—':correctCount(qs)}</b><span>Correctas registradas</span></div><div class="stat"><b>${state.mode==='exam'&&!state.examSubmitted?'—':scorePct(qs)+'%'}</b><span>Precisión respondidas</span></div></div>
-      <div class="progress-wrap"><div class="progress-row"><span>Progreso</span><span>${answeredCount(qs)} / ${qs.length}</span></div><div class="progress-bar"><div class="progress-fill" style="width:${qs.length?answeredCount(qs)*100/qs.length:0}%"></div></div></div>`;
+
+  function renderModeSwitch(extraClass = '') {
+    return `<div class="mode-switch ${extraClass}" aria-label="Modo de estudio">
+      <button type="button" data-mode="practice" class="${state.mode === 'practice' ? 'active' : ''}">Práctica</button>
+      <button type="button" data-mode="exam" class="${state.mode === 'exam' ? 'active' : ''}">Examen</button>
+    </div>`;
   }
-  function renderContext(q){
-    if(!q.context)return '';
-    const txt=q.context.text||''; const long=txt.length>1300; const collapsed=long&&!state.contextExpanded;
-    const shown=collapsed?txt.slice(0,1300).replace(/\s+$/,'')+'…':txt;
-    return `<section class="context"><h3>${esc(q.context.label||'Texto de referencia')}</h3><div class="context-text">${esc(shown)}</div>${long?`<button class="context-toggle" data-toggle-context>${collapsed?'Ver texto completo':'Contraer texto'}</button>`:''}</section>`;
+
+  function renderHeader() {
+    const qs = currentQuestions();
+    const answered = answeredCount(qs);
+    const progress = qs.length ? Math.round(answered * 100 / qs.length) : 0;
+    const accuracyVisible = !(state.mode === 'exam' && !state.examSubmitted);
+    const accuracy = accuracyVisible ? scorePct(qs) + '%' : 'Oculta';
+    const correct = accuracyVisible ? correctCount(qs) : '—';
+    const title = sectionTitle();
+
+    return `<div class="mobile-appbar">
+        <button class="icon-btn" type="button" data-open-drawer aria-label="Abrir menú">${icon('menu')}</button>
+        <div class="mobile-title"><div class="mobile-kicker">PRONABEC</div><h1>${esc(title)}</h1></div>
+        <button class="icon-btn" type="button" data-open-navigator aria-label="Mapa de preguntas">${icon('grid')}</button>
+      </div>
+      <div class="mobile-mode-row">${renderModeSwitch()}</div>
+
+      <div class="topbar">
+        <div class="topbar-main">
+          <div class="topbar-left"><div class="eyebrow">Simulador PRONABEC · Razonamiento Verbal</div><h2>${esc(title)}</h2></div>
+          <div class="top-actions">${renderModeSwitch()}${state.mode === 'exam' ? '<button class="btn primary" type="button" data-submit>Finalizar examen</button>' : '<button class="btn" type="button" data-results>Ver resultados</button>'}</div>
+        </div>
+      </div>
+
+      <section class="progress-card" aria-label="Progreso">
+        <div class="progress-top">
+          <div class="progress-label"><strong>${answered} / ${qs.length}</strong><span>respondidas</span></div>
+          <div class="progress-percent">${progress}%</div>
+        </div>
+        <div class="progress-bar"><div class="progress-fill" style="width:${progress}%"></div></div>
+        <div class="progress-meta"><span>Correctas <b>${correct}</b></span><span>Precisión <b>${accuracy}</b></span><span>${qs.filter(q => state.marked[q.id]).length ? `Marcadas <b>${qs.filter(q => state.marked[q.id]).length}</b>` : 'Tu avance se guarda automáticamente'}</span></div>
+      </section>`;
   }
-  function renderVisual(q){
-    if(!q.requires_visual)return '';
-    const pages=pageRange(q);
-    return `<section class="visual-wrap"><div class="visual-title">Material visual de la página original ${esc(q.original_page_start)}${q.original_page_end&&q.original_page_end!==q.original_page_start?'–'+esc(q.original_page_end):''}</div>
-      ${pages.length?`<div class="page-images">${pages.map(p=>`<img class="page-img" loading="lazy" data-zoom src="${esc(PAGE_IMAGES[p])}" alt="Página ${p}">`).join('')}</div>`:'<div>Este JSON marca la pregunta como visual, pero no incluye una imagen asociada.</div>'}
+
+  function renderContext(q) {
+    if (!q.context) return '';
+    const txt = q.context.text || '';
+    const long = txt.length > 1200;
+    const collapsed = long && !state.contextExpanded;
+    const shown = collapsed ? txt.slice(0, 1200).replace(/\s+$/, '') + '…' : txt;
+    return `<section class="context">
+      <div class="context-head">${icon('book')}<h3>${esc(q.context.label || 'Texto de referencia')}</h3></div>
+      <div class="context-text">${esc(shown)}</div>
+      ${long ? `<button class="context-toggle" type="button" data-toggle-context>${collapsed ? 'Leer texto completo' : 'Mostrar menos'}</button>` : ''}
     </section>`;
   }
-  function renderQuestion(){
-    const q=currentQ(), qs=currentQuestions(); if(!q)return `<div class="card empty">No hay preguntas que coincidan con el filtro.</div>`;
-    const selected=state.answers[q.id]; const show=isFeedbackVisible(q); const isCorrect=selected===q.correct_answer;
-    const options=(q.alternatives||[]).map(a=>{
-      let cls='option'; if(selected===a.letter)cls+=' selected'; if(show&&a.letter===q.correct_answer)cls+=' correct'; if(show&&selected===a.letter&&selected!==q.correct_answer)cls+=' incorrect';
-      return `<div class="${cls}" data-option="${esc(a.letter)}"><div class="letter">${esc(a.letter)}</div><div class="option-text">${esc(a.text)}</div></div>`;
-    }).join('');
-    let feedback='';
-    if(show){
-      if(!selected) feedback=`<div class="feedback neutral">Sin respuesta. Respuesta correcta: <b>${esc(q.correct_answer)}</b> — ${esc(q.correct_answer_text||'')}</div>`;
-      else feedback=`<div class="feedback ${isCorrect?'ok':'bad'}">${isCorrect?'✓ Correcto':'✕ Incorrecto'} · Respuesta correcta: <b>${esc(q.correct_answer)}</b>${q.correct_answer_text?' — '+esc(q.correct_answer_text):''}</div>`;
+
+  function renderVisual(q) {
+    if (!q.requires_visual) return '';
+    const pages = pageRange(q);
+    return `<section class="visual-wrap">
+      <div class="visual-title">${icon('image')} Material visual · página ${esc(q.original_page_start)}${q.original_page_end && q.original_page_end !== q.original_page_start ? '–' + esc(q.original_page_end) : ''}</div>
+      ${pages.length
+        ? `<div class="page-images">${pages.map(p => `<img class="page-img" loading="lazy" data-zoom src="${esc(PAGE_IMAGES[p])}" alt="Página ${p}">`).join('')}</div>`
+        : '<div>Esta pregunta requiere material visual, pero no hay una imagen asociada.</div>'}
+    </section>`;
+  }
+
+  function renderFeedback(q, selected, isCorrect) {
+    if (!isFeedbackVisible(q)) return '';
+    if (!selected) {
+      return `<div class="feedback neutral">${icon('grid')}<div>Sin respuesta. La alternativa correcta es <b>${esc(q.correct_answer)}</b>${q.correct_answer_text ? ` — ${esc(q.correct_answer_text)}` : ''}.</div></div>`;
     }
+    return `<div class="feedback ${isCorrect ? 'ok' : 'bad'}">${icon(isCorrect ? 'check' : 'x')}<div><b>${isCorrect ? 'Respuesta correcta' : 'Respuesta incorrecta'}</b>${!isCorrect ? ` · La correcta es <b>${esc(q.correct_answer)}</b>${q.correct_answer_text ? ` — ${esc(q.correct_answer_text)}` : ''}` : ''}</div></div>`;
+  }
+
+  function renderQuestion() {
+    const q = currentQ();
+    const qs = currentQuestions();
+    if (!q) return `<div class="card empty"><b>No encontramos preguntas.</b><br>Prueba con otro tema o borra el texto de búsqueda.</div>`;
+
+    const selected = state.answers[q.id];
+    const show = isFeedbackVisible(q);
+    const isCorrect = selected === q.correct_answer;
+    const marked = !!state.marked[q.id];
+    const options = (q.alternatives || []).map(a => {
+      let cls = 'option';
+      if (selected === a.letter) cls += ' selected';
+      if (show && a.letter === q.correct_answer) cls += ' correct';
+      if (show && selected === a.letter && selected !== q.correct_answer) cls += ' incorrect';
+      const stateIcon = show && a.letter === q.correct_answer ? icon('check') : (show && selected === a.letter && selected !== q.correct_answer ? icon('x') : icon('check'));
+      return `<button class="${cls}" type="button" data-option="${esc(a.letter)}" aria-pressed="${selected === a.letter ? 'true' : 'false'}">
+        <span class="letter">${esc(a.letter)}</span>
+        <span class="option-text">${esc(a.text)}</span>
+        <span class="option-state">${stateIcon}</span>
+      </button>`;
+    }).join('');
+
     return `<article class="card question-card">
-      <div class="q-head"><div class="q-meta"><span class="tag">Pregunta ${state.current+1} de ${qs.length}</span>${q.requires_visual?'<span class="tag visual">Visual</span>':''}${state.marked[q.id]?'<span class="tag marked">Marcada</span>':''}</div><span class="q-id">${esc(q.id)}</span></div>
-      ${renderContext(q)}${renderVisual(q)}
-      <div class="q-body">${q.prelude_text?`<div class="prelude">${esc(q.prelude_text)}</div>`:''}<p class="prompt">${esc(q.prompt)}</p><div class="options">${options}</div>${feedback}</div>
-      <div class="q-footer"><div class="nav-group"><button class="btn" data-prev ${state.current===0?'disabled':''}>← Anterior</button><button class="btn" data-next ${state.current===qs.length-1?'disabled':''}>Siguiente →</button></div><div class="nav-group"><button class="btn" data-mark>${state.marked[q.id]?'Quitar marca':'Marcar para revisar'}</button>${state.mode==='exam'&&!state.examSubmitted?'<button class="btn primary" data-submit>Finalizar</button>':''}</div></div>
+      <div class="q-head">
+        <div class="q-meta">
+          <button class="tag current" type="button" data-open-navigator>Pregunta ${state.current + 1} de ${qs.length}</button>
+          ${q.requires_visual ? '<span class="tag visual">Visual</span>' : ''}
+          ${marked ? '<span class="tag marked">Revisar</span>' : ''}
+        </div>
+        <button class="mark-icon ${marked ? 'active' : ''}" type="button" data-mark aria-label="${marked ? 'Quitar marca' : 'Marcar para revisar'}">${icon('bookmark')}</button>
+      </div>
+      ${renderContext(q)}
+      ${renderVisual(q)}
+      <div class="q-body">
+        ${q.prelude_text ? `<div class="prelude">${esc(q.prelude_text)}</div>` : ''}
+        <p class="prompt">${esc(q.prompt)}</p>
+        <div class="options">${options}</div>
+        ${renderFeedback(q, selected, isCorrect)}
+      </div>
+      <div class="q-footer">
+        <div class="nav-group"><button class="btn" type="button" data-prev ${state.current === 0 ? 'disabled' : ''}>${icon('chevronLeft')} Anterior</button><button class="btn primary" type="button" data-next ${state.current === qs.length - 1 ? 'disabled' : ''}>Siguiente ${icon('chevronRight')}</button></div>
+        <div class="nav-group">${state.mode === 'exam' && !state.examSubmitted ? '<button class="btn" type="button" data-submit>Finalizar examen</button>' : '<button class="btn ghost" type="button" data-results>Resultados</button>'}</div>
+      </div>
     </article>`;
   }
-  function renderNavigator(){
-    const qs=currentQuestions(); if(!qs.length)return '';
-    return `<aside class="card navigator"><h3>Navegación</h3><div class="nav-grid">${qs.map((q,i)=>{
-      const a=state.answers[q.id], show=isFeedbackVisible(q); let cls='nav-num'; if(i===state.current)cls+=' current'; if(a)cls+=' answered'; if(show&&a)cls+=a===q.correct_answer?' correct':' wrong'; if(state.marked[q.id])cls+=' marked'; return `<button class="${cls}" data-jump="${i}" title="${esc(q.id)}">${i+1}</button>`;
-    }).join('')}</div><div class="legend"><span><i class="dot a"></i>Respondida</span><span><i class="dot m"></i>Marcada</span></div></aside>`;
+
+  function navButtonClass(q, i) {
+    const a = state.answers[q.id];
+    const show = isFeedbackVisible(q);
+    let cls = 'nav-num';
+    if (i === state.current) cls += ' current';
+    if (a) cls += ' answered';
+    if (show && a) cls += a === q.correct_answer ? ' correct' : ' wrong';
+    if (state.marked[q.id]) cls += ' marked';
+    return cls;
   }
-  function renderQuestionArea(){ render(); }
-  function render(){
-    app.innerHTML=`<div class="app-shell">${renderSidebar()}<main class="main">${renderHeader()}<div id="questionArea"><div class="workspace">${renderQuestion()}${renderNavigator()}</div></div></main></div>`;
+
+  function renderNavButtons(qs, dataAttr = 'data-jump') {
+    return qs.map((q, i) => `<button class="${navButtonClass(q, i)}" type="button" ${dataAttr}="${i}" title="${esc(q.id)}">${i + 1}</button>`).join('');
+  }
+
+  function renderNavigator() {
+    const qs = currentQuestions();
+    if (!qs.length) return '';
+    return `<aside class="card navigator">
+      <div class="navigator-head"><h3>Mapa de preguntas</h3><span class="q-id">${answeredCount(qs)}/${qs.length}</span></div>
+      <div class="nav-grid">${renderNavButtons(qs)}</div>
+      <div class="legend"><span><i class="dot a"></i>Respondida</span><span><i class="dot m"></i>Marcada</span></div>
+    </aside>`;
+  }
+
+  function renderMobileDock() {
+    const q = currentQ();
+    const qs = currentQuestions();
+    if (!q || !qs.length) return '';
+    const marked = !!state.marked[q.id];
+    return `<nav class="mobile-dock" aria-label="Navegación de preguntas">
+      <div class="dock-inner">
+        <button class="dock-btn" type="button" data-prev ${state.current === 0 ? 'disabled' : ''}>${icon('chevronLeft')} Anterior</button>
+        <button class="dock-btn mark ${marked ? 'active' : ''}" type="button" data-mark aria-label="${marked ? 'Quitar marca' : 'Marcar para revisar'}">${icon('bookmark')}</button>
+        ${state.mode === 'exam' && !state.examSubmitted && state.current === qs.length - 1
+          ? `<button class="dock-btn next" type="button" data-submit>Finalizar ${icon('check')}</button>`
+          : `<button class="dock-btn next" type="button" data-next ${state.current === qs.length - 1 ? 'disabled' : ''}>Siguiente ${icon('chevronRight')}</button>`}
+      </div>
+    </nav>`;
+  }
+
+  function render() {
+    app.innerHTML = `<div class="app-shell">
+      ${renderSidebar()}
+      <div class="drawer-backdrop" data-close-drawer></div>
+      <main class="main">
+        ${renderHeader()}
+        <div class="workspace">${renderQuestion()}${renderNavigator()}</div>
+      </main>
+      ${renderMobileDock()}
+    </div>`;
     bindAll();
   }
-  function bindDynamic(){
-    document.querySelectorAll('[data-option]').forEach(el=>el.onclick=()=>choose(el.dataset.option));
-    const prev=document.querySelector('[data-prev]');if(prev)prev.onclick=()=>move(-1); const next=document.querySelector('[data-next]');if(next)next.onclick=()=>move(1);
-    document.querySelectorAll('[data-jump]').forEach(el=>el.onclick=()=>jump(Number(el.dataset.jump)));
-    document.querySelectorAll('[data-mark]').forEach(el=>el.onclick=toggleMark);
-    document.querySelectorAll('[data-submit]').forEach(el=>el.onclick=submitExam);
-    const tc=document.querySelector('[data-toggle-context]');if(tc)tc.onclick=()=>{state.contextExpanded=!state.contextExpanded;renderQuestionArea();};
-    document.querySelectorAll('[data-zoom]').forEach(img=>img.onclick=()=>{const z=document.createElement('div');z.className='zoom';z.innerHTML=`<img src="${img.src}">`;z.onclick=()=>z.remove();document.body.appendChild(z);});
+
+  function bindAll() {
+    document.querySelectorAll('[data-open-drawer]').forEach(el => el.onclick = openDrawer);
+    document.querySelectorAll('[data-close-drawer]').forEach(el => el.onclick = closeDrawer);
+    document.querySelectorAll('[data-topic]').forEach(el => el.onclick = () => setTopic(el.dataset.topic));
+    document.querySelectorAll('[data-option]').forEach(el => el.onclick = () => choose(el.dataset.option));
+    document.querySelectorAll('[data-prev]').forEach(el => el.onclick = () => move(-1));
+    document.querySelectorAll('[data-next]').forEach(el => el.onclick = () => move(1));
+    document.querySelectorAll('[data-jump]').forEach(el => el.onclick = () => jump(Number(el.dataset.jump)));
+    document.querySelectorAll('[data-mark]').forEach(el => el.onclick = toggleMark);
+    document.querySelectorAll('[data-submit]').forEach(el => el.onclick = submitExam);
+    document.querySelectorAll('[data-results]').forEach(el => el.onclick = () => { closeDrawer(); showResults(); });
+    document.querySelectorAll('[data-open-navigator]').forEach(el => el.onclick = () => { closeDrawer(); showNavigator(); });
+    document.querySelectorAll('[data-mode]').forEach(el => el.onclick = () => setMode(el.dataset.mode));
+    document.querySelectorAll('[data-load-json]').forEach(el => el.onclick = () => fileInput.click());
+    document.querySelectorAll('[data-reset]').forEach(el => el.onclick = resetProgress);
+
+    const tc = document.querySelector('[data-toggle-context]');
+    if (tc) tc.onclick = () => { state.contextExpanded = !state.contextExpanded; render(); };
+
+    document.querySelectorAll('[data-zoom]').forEach(img => img.onclick = () => {
+      const z = document.createElement('div');
+      z.className = 'zoom';
+      z.innerHTML = `<img src="${img.src}" alt="Vista ampliada">`;
+      z.onclick = () => z.remove();
+      document.body.appendChild(z);
+    });
+
+    const s = document.getElementById('searchInput');
+    if (s) s.oninput = () => {
+      state.search = s.value;
+      state.current = 0;
+      render();
+      setTimeout(() => {
+        const n = document.getElementById('searchInput');
+        if (n) {
+          n.focus();
+          n.setSelectionRange(n.value.length, n.value.length);
+        }
+      }, 0);
+    };
   }
-  function bindAll(){
-    document.querySelectorAll('[data-topic]').forEach(el=>el.onclick=()=>setTopic(el.dataset.topic));
-    const s=document.getElementById('searchInput'); if(s)s.oninput=()=>{state.search=s.value;state.current=0;render();setTimeout(()=>{const n=document.getElementById('searchInput');if(n){n.focus();n.setSelectionRange(n.value.length,n.value.length);}},0)};
-    document.querySelectorAll('[data-mode]').forEach(el=>el.onclick=()=>setMode(el.dataset.mode));
-    document.querySelectorAll('[data-load-json]').forEach(el=>el.onclick=()=>fileInput.click());
-    document.querySelectorAll('[data-reset]').forEach(el=>el.onclick=resetProgress);
-    document.querySelectorAll('[data-results]').forEach(el=>el.onclick=showResults);
-    bindDynamic();
-  }
-  fileInput.addEventListener('change',()=>{ if(fileInput.files?.[0]) importJSON(fileInput.files[0]); fileInput.value=''; });
-  document.addEventListener('keydown',e=>{
-    if(['INPUT','TEXTAREA'].includes(document.activeElement?.tagName))return;
-    if(e.key==='ArrowLeft'){e.preventDefault();move(-1)} if(e.key==='ArrowRight'){e.preventDefault();move(1)}
-    if(/^[1-5]$/.test(e.key)){const q=currentQ(),a=q?.alternatives?.[Number(e.key)-1];if(a)choose(a.letter)}
+
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files?.[0]) importJSON(fileInput.files[0]);
+    fileInput.value = '';
   });
-  loadProgress(); render();
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+      closeDrawer();
+      document.querySelector('.modal-backdrop')?.remove();
+      return;
+    }
+    if (['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName)) return;
+    if (e.key === 'ArrowLeft') { e.preventDefault(); move(-1); }
+    if (e.key === 'ArrowRight') { e.preventDefault(); move(1); }
+    if (/^[1-5]$/.test(e.key)) {
+      const q = currentQ();
+      const a = q?.alternatives?.[Number(e.key) - 1];
+      if (a) choose(a.letter);
+    }
+  });
+
+  loadProgress();
+  render();
 })();
