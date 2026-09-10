@@ -1,7 +1,9 @@
-/* Reading system v2.6 — distraction-free study + strategic highlights */
+/* Reading system v2.7 — distraction-free study + stable guided typography */
 :root{
   --reading-font:"Aptos","Segoe UI Variable Text","SF Pro Text","Inter",ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
   --ink:#2a313b;
+  --reading-size:clamp(.86rem,3.15vw,.94rem);
+  --reading-leading:1.64;
 }
 html{font-size:16px}
 body{font-family:var(--reading-font);font-feature-settings:"kern" 1,"liga" 1;text-rendering:optimizeLegibility;letter-spacing:0}
@@ -11,34 +13,47 @@ body{font-family:var(--reading-font);font-feature-settings:"kern" 1,"liga" 1;tex
 /* Durante el ejercicio no mostramos métricas, porcentajes ni controles redundantes. */
 .progress-card,.mobile-mode-row,.topbar{display:none!important}
 .mobile-kicker{display:none!important}
-.mobile-appbar{min-height:48px;margin-bottom:10px;padding-top:4px;padding-bottom:4px}
+.mobile-appbar{min-height:48px;margin-bottom:8px;padding-top:4px;padding-bottom:4px}
 .mobile-title h1{font-size:.92rem!important;line-height:1.25!important;font-weight:700!important;letter-spacing:-.01em!important}
 
-/* Lectura normal: el texto conserva su forma y respira. */
+/* El contador "Pregunta X de 280" y todo su espacio desaparecen. */
+.q-head{display:none!important;height:0!important;min-height:0!important;margin:0!important;padding:0!important;border:0!important}
+
+/* Lectura normal y lectura tras un error: exactamente la misma escala. */
 .context{padding:14px 15px;background:#fbfcfd}
 .context-head{margin-bottom:9px}
 .context h3{font-size:.67rem;letter-spacing:.055em;font-family:var(--reading-font);color:#737b87}
-.context-text{
-  font-size:clamp(.86rem,3.15vw,.94rem);
-  line-height:1.64;
-  letter-spacing:-.001em;
-  font-weight:420;
-  color:var(--ink);
-  max-height:none;
-  overflow:visible;
-  white-space:pre-line;
-  text-align:left;
-  hyphens:none;
-  overflow-wrap:break-word;
-  text-wrap:pretty;
+.context-text,
+.guided-context .context-text{
+  font-family:var(--reading-font)!important;
+  font-size:var(--reading-size)!important;
+  line-height:var(--reading-leading)!important;
+  letter-spacing:-.001em!important;
+  font-weight:420!important;
+  color:var(--ink)!important;
+  max-height:none!important;
+  overflow:visible!important;
+  white-space:pre-line!important;
+  text-align:left!important;
+  hyphens:none!important;
+  overflow-wrap:break-word!important;
+  text-wrap:pretty!important;
 }
+.guided-context{font-size:inherit!important;line-height:inherit!important}
 .guided-badge{display:none!important}
 
-/* Resaltado tipo marcador: fondo suave detrás de las mismas letras, sin apagar el resto. */
+/* El resaltado nunca cambia tamaño, altura de línea ni peso de las letras. */
+.smart-reading,
+.smart-hl{
+  font-family:inherit!important;
+  font-size:inherit!important;
+  line-height:inherit!important;
+  letter-spacing:inherit!important;
+  font-weight:inherit!important;
+}
 .smart-reading{display:inline;color:inherit}
 .smart-hl{
-  color:#202832;
-  font-weight:520;
+  color:inherit!important;
   border-radius:.28em;
   padding:.06em .1em .08em;
   margin:0 -.02em;
@@ -49,7 +64,7 @@ body{font-family:var(--reading-font);font-feature-settings:"kern" 1,"liga" 1;tex
 .hl-bridge{background:rgba(151,194,255,.38)}
 .hl-trap{background:rgba(255,210,116,.44)}
 
-/* Pistas socráticas: breves, pegadas a la frase y sin revelar la respuesta. */
+/* Pistas breves: claramente secundarias y más pequeñas que la lectura. */
 .smart-note{
   display:block;
   width:fit-content;
@@ -57,14 +72,14 @@ body{font-family:var(--reading-font);font-feature-settings:"kern" 1,"liga" 1;tex
   margin:6px 0 9px 4px;
   padding:5px 9px 6px;
   border-radius:9px;
-  font-size:clamp(.71rem,2.7vw,.78rem);
-  line-height:1.4;
-  font-weight:480;
+  font-size:clamp(.69rem,2.55vw,.75rem)!important;
+  line-height:1.38!important;
+  font-weight:480!important;
   color:#59616c;
   background:#f5f7f9;
   border-left:2px solid #c9d0d8;
 }
-.smart-note b{margin-right:.32em;font-size:.62rem;letter-spacing:.035em;text-transform:uppercase;color:#434c58}
+.smart-note b{margin-right:.32em;font-size:.61rem;letter-spacing:.035em;text-transform:uppercase;color:#434c58}
 .note-key{background:#f2faf5;border-left-color:#8dc9a7}
 .note-bridge{background:#f3f7fc;border-left-color:#9db9df}
 .note-trap{background:#fcf8ef;border-left-color:#dbbd7c}
@@ -83,7 +98,7 @@ body{font-family:var(--reading-font);font-feature-settings:"kern" 1,"liga" 1;tex
 .feedback-return b{color:#525b67}
 .learning-coach,.guide-paragraph,.guide-role,.inline-teach-note{display:none!important}
 
-/* Resumen: completamente invisible hasta completar 30 minutos efectivos. */
+/* Resumen: invisible durante el trabajo y visible solo al completar cada bloque de 30 min. */
 .session-backdrop{position:fixed;inset:0;z-index:120;background:rgba(11,17,28,.38);display:flex;align-items:flex-end;justify-content:center;padding:16px;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
 .session-sheet{position:relative;width:min(100%,500px);background:rgba(255,255,255,.98);border:1px solid rgba(255,255,255,.72);border-radius:25px;padding:22px 20px calc(20px + env(safe-area-inset-bottom));box-shadow:0 28px 80px rgba(12,22,40,.27)}
 .session-close{position:absolute;right:14px;top:13px;width:36px;height:36px;border:0;border-radius:50%;background:#f1f3f6;color:#59616d;font-size:22px;line-height:1;cursor:pointer}
@@ -95,8 +110,8 @@ body{font-family:var(--reading-font);font-feature-settings:"kern" 1,"liga" 1;tex
 .session-continue{width:100%;margin-top:13px;border:0;border-radius:13px;padding:12px 14px;background:#275cf4;color:white;font:700 .87rem/1 var(--reading-font);cursor:pointer}
 
 @media(min-width:720px){
+  :root{--reading-size:.92rem;--reading-leading:1.67}
   .context{padding:18px 20px}
-  .context-text{font-size:.92rem;line-height:1.67}
   .q-body{padding:22px 22px 25px}
   .prompt{max-width:60ch;font-size:1.11rem}
   .option-text{font-size:.92rem}
