@@ -1,0 +1,78 @@
+/* Study orientation + answer-grounded feedback */
+
+/* Recupera orientación sin volver a mostrar X/280, porcentajes ni progreso. */
+.question-card .q-head{
+  display:flex!important;
+  height:auto!important;
+  min-height:30px!important;
+  margin:0!important;
+  padding:8px 15px 0!important;
+  border:0!important;
+  align-items:center!important;
+  justify-content:space-between!important;
+  gap:8px!important;
+}
+.question-card .q-meta{display:flex!important;align-items:center!important;gap:6px!important}
+.question-card .q-meta .tag:not(.current){display:none!important}
+.question-card .tag.current{
+  display:inline-flex!important;
+  align-items:center!important;
+  min-height:24px!important;
+  padding:3px 8px!important;
+  border:0!important;
+  border-radius:8px!important;
+  background:#f1f4f8!important;
+  color:#667080!important;
+  box-shadow:none!important;
+  font:700 .68rem/1.2 var(--reading-font)!important;
+  letter-spacing:.015em!important;
+}
+.question-card .mark-icon{
+  width:30px!important;
+  height:30px!important;
+  min-width:30px!important;
+  border:0!important;
+  background:transparent!important;
+  box-shadow:none!important;
+  color:#9aa1ac!important;
+}
+.question-card .mark-icon.active{color:#b85e30!important;background:#fff5ef!important}
+
+/* La verdad del ejercicio queda conectada con la misma evidencia marcada. */
+.smart-note.note-key{
+  background:#f1faf5!important;
+  border-left-color:#79bb98!important;
+  color:#45584d!important;
+}
+.smart-note.note-key b{color:#276947!important}
+.smart-note.note-trap b{color:#875f20!important}
+
+.feedback-return.feedback-truth{
+  display:block!important;
+  margin:11px 1px 0!important;
+  padding:9px 10px!important;
+  border:1px solid #e7ece9!important;
+  border-radius:10px!important;
+  background:#fafcfb!important;
+  color:#515b66!important;
+  font-size:.75rem!important;
+  line-height:1.42!important;
+  font-weight:450!important;
+}
+.feedback-return.feedback-truth>b{
+  display:block!important;
+  margin:0 0 3px!important;
+  color:#216846!important;
+  font-size:.76rem!important;
+  font-weight:760!important;
+}
+.feedback-return.feedback-truth>span{
+  display:block!important;
+  color:#626b76!important;
+  font-size:.73rem!important;
+  line-height:1.43!important;
+}
+
+@media(min-width:720px){
+  .question-card .q-head{padding:9px 20px 0!important}
+}
