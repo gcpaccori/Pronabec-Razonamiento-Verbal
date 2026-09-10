@@ -1,0 +1,95 @@
+name: Rebuild HQ visual assets
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/rebuild-hq-visuals.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  rebuild:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y poppler-utils
+          python -m pip install --upgrade pip pillow
+
+      - name: Download official PRONABEC book
+        run: |
+          curl -L --fail --retry 3 \
+            'https://www.pronabec.gob.pe/wp-content/uploads/2025/06/Libro-Preparate-del-Pronabec-Segunda-Edicion-Razonamiento-Verbal.pdf' \
+            -o /tmp/pronabec.pdf
+
+      - name: Render source pages at 500 DPI
+        run: |
+          mkdir -p /tmp/pronabec-pages assets/visuals
+          for p in 251 253 256 269 270 273 275 323; do
+            pdftoppm -f "$p" -l "$p" -singlefile -r 500 -jpeg -jpegopt quality=98,progressive=n \
+              /tmp/pronabec.pdf "/tmp/pronabec-pages/page_${p}"
+          done
+
+      - name: Crop approved regions and encode high quality WebP
+        run: |
+          python - <<'PY'
+          from PIL import Image
+          from pathlib import Path
+
+          src = Path('/tmp/pronabec-pages')
+          out = Path('assets/visuals')
+          out.mkdir(parents=True, exist_ok=True)
+
+          # Coordinates are from the approved 250-DPI crops. They are scaled
+          # to the actual 500-DPI render, preserving the exact same framing.
+          reference_width = 1457
+          reference_height = 2067
+          items = {
+              'visual_chancay.webp': (251, (114.1, 142.0, 1337.2, 1115.2)),
+              'visual_discriminacion.webp': (253, (134.9, 940.1, 1337.2, 1594.1)),
+              'visual_cancer_latam.webp': (256, (149.0, 829.0, 1317.1, 1753.1)),
+              'visual_b12.webp': (269, (190.1, 516.1, 1303.1, 1843.2)),
+              'visual_digestion.webp': (270, (107.3, 1037.0, 1351.2, 1934.3)),
+              'visual_tb_2016.webp': (273, (211.1, 301.1, 1303.0, 1441.2)),
+              'visual_accidentes_transito.webp': (275, (135.4, 1155.1, 1379.4, 1913.1)),
+              'visual_carril_cerrado.webp': (323, (849.3, 1522.6, 1344.2, 1843.0)),
+          }
+
+          for filename, (page, box) in items.items():
+              im = Image.open(src / f'page_{page}.jpg').convert('RGB')
+              sx = im.width / reference_width
+              sy = im.height / reference_height
+              x1, y1, x2, y2 = box
+              crop_box = (
+                  round(x1 * sx), round(y1 * sy),
+                  round(x2 * sx), round(y2 * sy),
+              )
+              crop = im.crop(crop_box)
+
+              # Preserve enough real pixels for high-DPI phones and zoom.
+              # 1600 px wide is 4x a typical 400 CSS-px mobile viewport.
+              if crop.width > 1600:
+                  height = round(crop.height * 1600 / crop.width)
+                  crop = crop.resize((1600, height), Image.Resampling.LANCZOS)
+
+              crop.save(out / filename, 'WEBP', quality=95, method=6)
+              print(filename, crop.size, (out / filename).stat().st_size)
+          PY
+
+      - name: Commit HQ assets to main
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add assets/visuals/*.webp
+          if git diff --cached --quiet; then
+            echo 'No image changes detected.'
+            exit 0
+          fi
+          git commit -m 'Upgrade graph assets to high resolution'
+          git push origin HEAD:main
