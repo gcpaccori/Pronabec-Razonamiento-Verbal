@@ -31,4 +31,5 @@
 .session-mini{display:grid;gap:7px}.session-mini-row{display:grid;grid-template-columns:58px 1fr auto;gap:9px;align-items:center;padding:9px 0;border-top:1px solid #f0f1f3}.session-mini-row:first-child{border-top:0}.session-mini-row b{font-size:.71rem;color:#485264}.session-mini-row span{font-size:.69rem;color:#7c8490}.session-mini-row em{font-style:normal;font-size:.69rem;font-weight:750;color:#4f5c74}
 .progress-source{margin-top:13px;text-align:center;font-size:.63rem;color:#9aa0aa}
 .side-action[data-my-progress]{font-weight:800;color:#3156c8;background:#f5f7ff;border-color:#e2e8ff}
+.session-progress-link{width:100%;margin-top:8px;border:1px solid #dfe5f3;border-radius:13px;padding:11px 13px;background:#f8faff;color:#3156c8;font:750 .82rem/1.1 var(--reading-font);cursor:pointer}
 @media(min-width:720px){.progress-backdrop{align-items:center;padding:24px}.progress-sheet{width:min(620px,100%);border-radius:26px;max-height:88vh;padding:18px 20px 24px}.progress-grabber{display:none}.progress-sheet-head{margin-top:2px}}
