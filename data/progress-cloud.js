@@ -11,7 +11,6 @@
   let status = 'starting';
   let queue = [];
   let positionTimer = null;
-
   const readyListeners = new Set();
 
   function localSession() {
@@ -33,6 +32,27 @@
     window.dispatchEvent(new CustomEvent('pronabec-cloud-status', { detail: { status, user } }));
   }
 
+  function localAchievementRows(progress) {
+    const rows = [];
+    const add = code => rows.push({ code, unlocked_at:null, metadata:{} });
+    const n = Number(progress.unique_questions) || 0;
+    const sessions = Number(progress.completed_sessions) || 0;
+    const first = Number(progress.first_try_correct) || 0;
+    if (n >= 1) add('first_step');
+    if (n >= 10) add('questions_10');
+    if (n >= 25) add('questions_25');
+    if (n >= 50) add('questions_50');
+    if (n >= 100) add('questions_100');
+    if (n >= 140) add('halfway');
+    if (n >= 280) add('complete_book');
+    if (sessions >= 1) add('session_1');
+    if (sessions >= 5) add('sessions_5');
+    if (sessions >= 10) add('sessions_10');
+    if (n >= 20 && first / Math.max(n,1) >= .70) add('precision_70');
+    if (n >= 50 && first / Math.max(n,1) >= .85) add('precision_85');
+    return rows.reverse();
+  }
+
   function localDashboard() {
     const s = localSession();
     const rows = Object.values(s.progressAnswered || {});
@@ -41,19 +61,20 @@
       return !!(x.firstCorrect || (q && x.lastSelected === q.correct_answer));
     }).length;
     const firstCorrect = rows.filter(x => x.firstCorrect).length;
+    const progress = {
+      total_questions: TOTAL,
+      unique_questions: rows.length,
+      solved_questions: solved,
+      first_try_correct: firstCorrect,
+      total_attempts: rows.reduce((n, x) => n + (Number(x.attempts) || 1), 0),
+      completed_sessions: Number(s.completedSessions) || 0,
+      total_active_ms: Number(s.lifetimeActiveMs) || 0,
+      current_question_id: s.lastPosition?.id || currentQuestionId() || null
+    };
     return {
       source: 'local',
-      progress: {
-        total_questions: TOTAL,
-        unique_questions: rows.length,
-        solved_questions: solved,
-        first_try_correct: firstCorrect,
-        total_attempts: rows.reduce((n, x) => n + (Number(x.attempts) || 1), 0),
-        completed_sessions: Number(s.completedSessions) || 0,
-        total_active_ms: Number(s.lifetimeActiveMs) || 0,
-        current_question_id: s.lastPosition?.id || currentQuestionId() || null
-      },
-      achievements: [],
+      progress,
+      achievements: localAchievementRows(progress),
       sessions: (s.sessionHistory || []).slice(-12).reverse()
     };
   }
@@ -68,7 +89,6 @@
   async function ensureUser() {
     const { data: existing } = await client.auth.getSession();
     if (existing?.session?.user) return existing.session.user;
-
     const { data, error } = await client.auth.signInAnonymously();
     if (error) throw error;
     return data?.user || data?.session?.user || null;
@@ -137,13 +157,15 @@
       if (localStorage.getItem(marker) === '1') return;
 
       const pace = snapshot.answered > 0 ? Math.round(snapshot.activeMs / snapshot.answered) : null;
+      const clientKey = `${snapshot.sessionNumber}:${snapshot.endedAt || 'local'}`;
       const { data, error } = await client.rpc('finish_study_session', {
         p_active_ms: Math.round(snapshot.activeMs || 0),
         p_questions_worked: Number(snapshot.answered) || 0,
         p_first_try_correct: Number(snapshot.correctFirstTry) || 0,
         p_pace_ms: pace,
         p_target_low: Number(snapshot.routeLow) || null,
-        p_target_high: Number(snapshot.routeHigh) || null
+        p_target_high: Number(snapshot.routeHigh) || null,
+        p_client_key: clientKey
       });
       if (error) throw error;
       localStorage.setItem(marker, '1');
@@ -174,17 +196,14 @@
 
   async function getDashboard() {
     if (status !== 'ready' || !client || !user) return localDashboard();
-
     const [p, a, s] = await Promise.all([
       client.from('user_progress').select('*').eq('user_id', user.id).maybeSingle(),
       client.from('achievements').select('code,unlocked_at,metadata').eq('user_id', user.id).order('unlocked_at', { ascending: false }),
       client.from('study_sessions').select('session_number,active_ms,questions_worked,first_try_correct,pace_ms,target_low,target_high,finished_at').eq('user_id', user.id).order('finished_at', { ascending: false }).limit(12)
     ]);
-
     if (p.error) throw p.error;
     if (a.error) throw a.error;
     if (s.error) throw s.error;
-
     return {
       source: 'cloud',
       progress: p.data || localDashboard().progress,
@@ -202,7 +221,7 @@
       }
 
       client = window.supabase.createClient(cfg.url, cfg.anonKey, {
-        auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
+        auth: { persistSession:true, autoRefreshToken:true, detectSessionInUrl:true }
       });
       user = await ensureUser();
       if (!user) throw new Error('No se pudo crear la sesión de usuario');
@@ -226,37 +245,31 @@
     const id = currentQuestionId();
     const q = questions.get(id);
     if (!id || !q) return;
-
     const selected = option.getAttribute('data-option');
     const s = localSession();
     recordAttempt({
-      questionId: id,
-      topicId: q.topic_id,
+      questionId:id,
+      topicId:q.topic_id,
       selected,
-      correct: selected === q.correct_answer,
-      activeMs: Number(s.blockActiveMs) || null
+      correct:selected === q.correct_answer,
+      activeMs:Number(s.blockActiveMs) || null
     }).catch(() => {});
-  }, { capture: true });
+  }, { capture:true });
 
   const bodyObserver = new MutationObserver(() => {
     savePosition();
     if (document.querySelector('.session-backdrop')) syncSessions().catch(() => {});
   });
-  bodyObserver.observe(document.documentElement, { childList: true, subtree: true });
+  bodyObserver.observe(document.documentElement, { childList:true, subtree:true });
 
   window.addEventListener('pagehide', () => savePosition());
   window.addEventListener('pronabec-session-complete', e => recordSession(e.detail).catch(() => {}));
 
   window.PRONABEC_CLOUD = {
-    init,
-    recordAttempt,
-    recordSession,
-    savePosition,
-    getDashboard,
-    localDashboard,
-    get status() { return status; },
-    get user() { return user; },
-    onReady(fn) { status === 'ready' ? fn() : readyListeners.add(fn); }
+    init, recordAttempt, recordSession, savePosition, getDashboard, localDashboard,
+    get status(){ return status; },
+    get user(){ return user; },
+    onReady(fn){ status === 'ready' ? fn() : readyListeners.add(fn); }
   };
 
   init();
