@@ -1,0 +1,57 @@
+name: Export questions 51-100
+
+on:
+  push:
+    branches: [curated-51-100]
+    paths:
+      - '.github/workflows/export-questions-51-100.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: curated-51-100
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Export exact global questions 51-100
+        run: |
+          python - <<'PY'
+          import json, pathlib
+          src = json.loads(pathlib.Path('data/questions.json').read_text(encoding='utf-8'))
+          flat=[]
+          for topic in src.get('topics',[]):
+              contexts={str(c.get('id')):c for c in topic.get('contexts',[])}
+              for q in topic.get('questions',[]):
+                  flat.append({
+                      'global_position': len(flat)+1,
+                      'id': q.get('id'),
+                      'topic_id': q.get('topic_id'),
+                      'topic_number': topic.get('topic_number'),
+                      'topic_title': topic.get('title'),
+                      'context': contexts.get(str(q.get('context_id'))),
+                      'prelude_text': q.get('prelude_text'),
+                      'prompt': q.get('prompt'),
+                      'alternatives': q.get('alternatives',[]),
+                      'correct_answer': q.get('correct_answer'),
+                      'correct_answer_text': q.get('correct_answer_text'),
+                  })
+          slice_=flat[50:100]
+          assert len(slice_)==50, len(slice_)
+          pathlib.Path('tmp').mkdir(exist_ok=True)
+          pathlib.Path('tmp/questions-51-100.json').write_text(json.dumps(slice_, ensure_ascii=False, indent=2), encoding='utf-8')
+          PY
+      - name: Commit export
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add tmp/questions-51-100.json
+          git diff --cached --quiet && exit 0
+          git commit -m 'Export exact questions 51-100 for curation'
+          git push origin HEAD:curated-51-100
