@@ -29,29 +29,37 @@ jobs:
           for topic in src.get('topics',[]):
               contexts={str(c.get('id')):c for c in topic.get('contexts',[])}
               for q in topic.get('questions',[]):
-                  flat.append({
-                      'global_position': len(flat)+1,
-                      'id': q.get('id'),
-                      'topic_id': q.get('topic_id'),
-                      'topic_number': topic.get('topic_number'),
-                      'topic_title': topic.get('title'),
-                      'context': contexts.get(str(q.get('context_id'))),
-                      'prelude_text': q.get('prelude_text'),
-                      'prompt': q.get('prompt'),
-                      'alternatives': q.get('alternatives',[]),
-                      'correct_answer': q.get('correct_answer'),
-                      'correct_answer_text': q.get('correct_answer_text'),
-                  })
-          slice_=flat[50:100]
-          assert len(slice_)==50, len(slice_)
+                  flat.append((topic, contexts.get(str(q.get('context_id'))), q))
+          selected=flat[50:100]
+          assert len(selected)==50
+          lines=['# Exact source for global exercises 51–100','']
+          last_topic=None
+          seen_context=set()
+          for pos,(topic,context,q) in enumerate(selected,start=51):
+              topic_key=(topic.get('topic_number'),topic.get('title'))
+              if topic_key!=last_topic:
+                  lines += [f"## Tema {topic.get('topic_number')}: {topic.get('title')}",'']
+                  last_topic=topic_key
+              if context:
+                  ck=(topic.get('id'),context.get('id'))
+                  if ck not in seen_context:
+                      seen_context.add(ck)
+                      lines += [f"### {context.get('label','Texto')}", '', (context.get('text') or '').strip(), '']
+              pre=(q.get('prelude_text') or '').strip()
+              lines += [f"### Ejercicio {pos} · {q.get('id')}"]
+              if pre: lines += [f"Preámbulo: {pre}"]
+              lines += [f"Pregunta: {(q.get('prompt') or '').strip()}"]
+              for a in q.get('alternatives',[]):
+                  lines += [f"{a.get('letter')}) {(a.get('text') or '').strip()}"]
+              lines += [f"CORRECTA: {q.get('correct_answer')}) {(q.get('correct_answer_text') or '').strip()}",'']
           pathlib.Path('tmp').mkdir(exist_ok=True)
-          pathlib.Path('tmp/questions-51-100.json').write_text(json.dumps(slice_, ensure_ascii=False, indent=2), encoding='utf-8')
+          pathlib.Path('tmp/curation-51-100.md').write_text('\n'.join(lines),encoding='utf-8')
           PY
       - name: Commit export
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add tmp/questions-51-100.json
+          git add tmp/curation-51-100.md
           git diff --cached --quiet && exit 0
-          git commit -m 'Export exact questions 51-100 for curation'
+          git commit -m 'Export compact source for exercises 51-100'
           git push origin HEAD:curated-51-100
