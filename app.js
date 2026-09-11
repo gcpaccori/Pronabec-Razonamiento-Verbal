@@ -463,7 +463,11 @@ function renderVisual(q) {
     if (!selected) {
       return `<div class="feedback neutral">${icon('grid')}<div>Sin respuesta. La alternativa correcta es <b>${esc(q.correct_answer)}</b>${q.correct_answer_text ? ` — ${esc(q.correct_answer_text)}` : ''}.</div></div>`;
     }
-    if (isCorrect) return `<div class="feedback ok">${icon('check')}<div><b>Respuesta correcta</b></div></div>`;
+    if (isCorrect) {
+      const learned = window.PRONABEC_COACH?.successFeedback?.(q, selected);
+      if (learned) return learned;
+      return `<div class="feedback ok">${icon('check')}<div><b>Respuesta correcta</b></div></div>`;
+    }
     const inline = window.PRONABEC_COACH?.compactFeedback?.(q, selected);
     if (inline) return inline;
     return `<div class="feedback bad">${icon('x')}<div><b>Respuesta incorrecta</b> · La correcta es <b>${esc(q.correct_answer)}</b>${q.correct_answer_text ? ` — ${esc(q.correct_answer_text)}` : ''}</div></div>`;
@@ -504,7 +508,7 @@ function renderQuestion() {
       ${renderVisual(q)}
       <div class="q-body">
         ${q.prelude_text ? (window.PRONABEC_COACH?.annotatePrelude?.(q, selected) || `<div class="prelude">${esc(q.prelude_text)}</div>`) : ''}
-        <p class="prompt">${esc(q.prompt)}</p>
+        <p class="prompt">${window.PRONABEC_COACH?.annotatePrompt?.(q, selected) || esc(q.prompt)}</p>
         <div class="options">${options}</div>
         ${renderFeedback(q, selected, isCorrect)}
       </div>
