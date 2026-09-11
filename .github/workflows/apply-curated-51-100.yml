@@ -1,0 +1,92 @@
+name: Apply curated learning 51-100
+
+on:
+  push:
+    branches: [curated-51-100]
+    paths:
+      - '.github/workflows/apply-curated-51-100.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: curated-51-100
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Patch app feedback hooks
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('app.js')
+          s=p.read_text(encoding='utf-8')
+          old="""    if (isCorrect) return `<div class=\"feedback ok\">${icon('check')}<div><b>Respuesta correcta</b></div></div>`;
+    const inline = window.PRONABEC_COACH?.compactFeedback?.(q, selected);"""
+          new="""    if (isCorrect) {
+      const learned = window.PRONABEC_COACH?.successFeedback?.(q, selected);
+      if (learned) return learned;
+      return `<div class=\"feedback ok\">${icon('check')}<div><b>Respuesta correcta</b></div></div>`;
+    }
+    const inline = window.PRONABEC_COACH?.compactFeedback?.(q, selected);"""
+          if old not in s:
+              raise SystemExit('renderFeedback hook target not found')
+          s=s.replace(old,new,1)
+          old_prompt='<p class="prompt">${esc(q.prompt)}</p>'
+          new_prompt='<p class="prompt">${window.PRONABEC_COACH?.annotatePrompt?.(q, selected) || esc(q.prompt)}</p>'
+          if old_prompt not in s:
+              raise SystemExit('prompt hook target not found')
+          s=s.replace(old_prompt,new_prompt,1)
+          p.write_text(s,encoding='utf-8')
+          PY
+      - name: Static and content QA
+        run: |
+          node --check app.js
+          node --check data/learning-coach.js
+          node --check data/curated-coach-51-100.js
+          node --check data/learning-ui.js
+          node --check data/session-engine.js
+          for f in data/learning-bank-51-60.js data/learning-bank-61-70.js data/learning-bank-71-80.js data/learning-bank-81-90.js data/learning-bank-91-100.js; do node --check "$f"; done
+          node <<'NODE'
+          const fs=require('fs'), vm=require('vm');
+          const sandbox={window:{},console}; vm.createContext(sandbox);
+          for (const f of ['data/questions.js','data/learning-bank-51-60.js','data/learning-bank-61-70.js','data/learning-bank-71-80.js','data/learning-bank-81-90.js','data/learning-bank-91-100.js']) {
+            vm.runInContext(fs.readFileSync(f,'utf8'),sandbox,{filename:f});
+          }
+          const flat=(sandbox.window.PRONABEC_DATA.topics||[]).flatMap(t=>t.questions||[]);
+          const bank=sandbox.window.PRONABEC_CURATED_51_100||{};
+          const expected=flat.slice(50,100).map(q=>q.id);
+          const ids=Object.keys(bank).sort((a,b)=>bank[a].position-bank[b].position);
+          if(ids.length!==50) throw new Error(`bank count ${ids.length}`);
+          if(JSON.stringify(ids)!==JSON.stringify(expected)) throw new Error('bank IDs do not match global exercises 51-100');
+          for(const id of ids){
+            const q=flat.find(x=>x.id===id), e=bank[id];
+            if(!q) throw new Error(`missing ${id}`);
+            const letters=(q.alternatives||[]).map(a=>a.letter);
+            if(!letters.includes(e.answer)) throw new Error(`invalid answer ${id}: ${e.answer}`);
+            for(const l of letters) if(l!==e.answer && !e.wrong?.[l]) throw new Error(`missing distractor explanation ${id} ${l}`);
+            if(!e.point || !e.transfer || !e.focus || !e.anchor) throw new Error(`incomplete pedagogy ${id}`);
+          }
+          console.log('Curated bank QA: 50/50 exercises complete.');
+          NODE
+          grep -q 'annotatePrompt' app.js
+          grep -q 'successFeedback' app.js
+      - name: Remove temporary curation exports
+        run: |
+          rm -f tmp/questions-51-100.json tmp/curation-51-100.md
+          rm -f .github/workflows/export-questions-51-100.yml
+          rm -f .github/workflows/apply-curated-51-100.yml
+      - name: Commit final curated implementation
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git diff --cached --quiet && exit 0
+          git commit -m 'Add curated learning guidance for exercises 51-100'
+          git push origin HEAD:curated-51-100
