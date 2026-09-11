@@ -1,0 +1,109 @@
+name: QA curated learning
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'index.html'
+      - 'app.js'
+      - 'data/questions.js'
+      - 'data/learning-bank-51-60.js'
+      - 'data/learning-bank-61-70.js'
+      - 'data/learning-bank-71-80.js'
+      - 'data/learning-bank-81-90.js'
+      - 'data/learning-bank-91-100.js'
+      - 'data/official-key-audit-51-100.js'
+      - 'data/learning-coach.js'
+      - 'data/curated-coach-51-100.js'
+      - '.github/workflows/qa-curated-learning.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: JavaScript syntax
+        run: |
+          node --check app.js
+          node --check data/learning-coach.js
+          node --check data/curated-coach-51-100.js
+          node --check data/official-key-audit-51-100.js
+          for f in data/learning-bank-51-60.js data/learning-bank-61-70.js data/learning-bank-71-80.js data/learning-bank-81-90.js data/learning-bank-91-100.js; do node --check "$f"; done
+      - name: Verify official keys and curated coverage
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const vm = require('vm');
+          const sandbox = { window: {}, console };
+          vm.createContext(sandbox);
+          const load = f => vm.runInContext(fs.readFileSync(f, 'utf8'), sandbox, { filename: f });
+
+          load('data/questions.js');
+          for (const f of [
+            'data/learning-bank-51-60.js',
+            'data/learning-bank-61-70.js',
+            'data/learning-bank-71-80.js',
+            'data/learning-bank-81-90.js',
+            'data/learning-bank-91-100.js'
+          ]) load(f);
+
+          const officialExpected = {
+            'RV-06-010': 'C',
+            'RV-08-004': 'B',
+            'RV-08-008': 'B',
+            'RV-08-010': 'C',
+            'RV-09-005': 'D',
+            'RV-09-009': 'D',
+            'RV-09-015': 'C'
+          };
+
+          const flat = (sandbox.window.PRONABEC_DATA.topics || []).flatMap(t => t.questions || []);
+          const qById = new Map(flat.map(q => [q.id, q]));
+          const bank = sandbox.window.PRONABEC_CURATED_51_100 || {};
+
+          for (const [id, expected] of Object.entries(officialExpected)) {
+            const q = qById.get(id);
+            if (!q) throw new Error(`Missing question ${id}`);
+            if (q.correct_answer !== expected) throw new Error(`${id}: dataset key ${q.correct_answer}, expected official ${expected}`);
+          }
+
+          load('data/official-key-audit-51-100.js');
+          for (const [id, expected] of Object.entries(officialExpected)) {
+            if (bank[id]?.answer !== expected) throw new Error(`${id}: audited bank answer ${bank[id]?.answer}, expected ${expected}`);
+          }
+
+          load('data/learning-coach.js');
+          load('data/curated-coach-51-100.js');
+          for (const [id, expected] of Object.entries(officialExpected)) {
+            const q = qById.get(id);
+            if (q.correct_answer !== expected) throw new Error(`${id}: runtime key mutated to ${q.correct_answer}`);
+          }
+
+          const expectedIds = flat.slice(50, 100).map(q => q.id);
+          const bankIds = Object.keys(bank).sort((a, b) => bank[a].position - bank[b].position);
+          if (bankIds.length !== 50) throw new Error(`Curated bank has ${bankIds.length} entries, expected 50`);
+          if (JSON.stringify(bankIds) !== JSON.stringify(expectedIds)) throw new Error('Curated IDs do not exactly match global exercises 51-100');
+
+          for (const id of bankIds) {
+            const q = qById.get(id);
+            const e = bank[id];
+            if (!e.focus || !e.point || !e.transfer || !e.anchor) throw new Error(`${id}: incomplete curated explanation`);
+            for (const alt of q.alternatives || []) {
+              if (alt.letter !== e.answer && !e.wrong?.[alt.letter]) throw new Error(`${id}: missing explanation for distractor ${alt.letter}`);
+            }
+          }
+
+          const html = fs.readFileSync('index.html', 'utf8');
+          const auditPos = html.indexOf('data/official-key-audit-51-100.js');
+          const coachPos = html.indexOf('data/curated-coach-51-100.js');
+          if (auditPos < 0 || coachPos < 0 || auditPos > coachPos) throw new Error('official-key audit must load before curated coach');
+
+          console.log('QA OK: official book keys preserved; curated exercises 51-100 complete 50/50.');
+          NODE
