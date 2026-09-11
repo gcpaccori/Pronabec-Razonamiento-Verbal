@@ -13,8 +13,10 @@ on:
       - 'data/learning-bank-81-90.js'
       - 'data/learning-bank-91-100.js'
       - 'data/official-key-audit-51-100.js'
+      - 'data/human-examples-51-100.js'
       - 'data/learning-coach.js'
       - 'data/curated-coach-51-100.js'
+      - 'curated-learning.css'
       - '.github/workflows/qa-curated-learning.yml'
   workflow_dispatch:
 
@@ -35,8 +37,9 @@ jobs:
           node --check data/learning-coach.js
           node --check data/curated-coach-51-100.js
           node --check data/official-key-audit-51-100.js
+          node --check data/human-examples-51-100.js
           for f in data/learning-bank-51-60.js data/learning-bank-61-70.js data/learning-bank-71-80.js data/learning-bank-81-90.js data/learning-bank-91-100.js; do node --check "$f"; done
-      - name: Verify official keys and curated coverage
+      - name: Verify official keys, curated coverage and examples
         run: |
           node <<'NODE'
           const fs = require('fs');
@@ -79,6 +82,9 @@ jobs:
             if (bank[id]?.answer !== expected) throw new Error(`${id}: audited bank answer ${bank[id]?.answer}, expected ${expected}`);
           }
 
+          load('data/human-examples-51-100.js');
+          const human = sandbox.window.PRONABEC_HUMAN_EXAMPLES_51_100 || {};
+
           load('data/learning-coach.js');
           load('data/curated-coach-51-100.js');
           for (const [id, expected] of Object.entries(officialExpected)) {
@@ -98,12 +104,17 @@ jobs:
             for (const alt of q.alternatives || []) {
               if (alt.letter !== e.answer && !e.wrong?.[alt.letter]) throw new Error(`${id}: missing explanation for distractor ${alt.letter}`);
             }
+            if (!human[id]?.plain || !human[id]?.example) throw new Error(`${id}: missing human plain explanation or concrete example`);
           }
+          if (Object.keys(human).length !== 50) throw new Error(`Human examples has ${Object.keys(human).length} entries, expected 50`);
 
           const html = fs.readFileSync('index.html', 'utf8');
           const auditPos = html.indexOf('data/official-key-audit-51-100.js');
+          const humanPos = html.indexOf('data/human-examples-51-100.js');
           const coachPos = html.indexOf('data/curated-coach-51-100.js');
-          if (auditPos < 0 || coachPos < 0 || auditPos > coachPos) throw new Error('official-key audit must load before curated coach');
+          if (auditPos < 0 || humanPos < 0 || coachPos < 0 || auditPos > humanPos || humanPos > coachPos) {
+            throw new Error('audit and human examples must load before curated coach');
+          }
 
-          console.log('QA OK: official book keys preserved; curated exercises 51-100 complete 50/50.');
+          console.log('QA OK: official keys preserved; 50/50 curated questions have distractor reasons and concrete human examples.');
           NODE
