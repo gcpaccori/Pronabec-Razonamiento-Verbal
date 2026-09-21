@@ -42,7 +42,7 @@
     },
     'RV-12-003': {
       position:124, answer:'C', focus:'Elipsis del sujeto ya mencionado',
-      anchor:'Flavio obtuvo la beca. Viajó a París',
+      anchor:'caso de elipsis',
       point:'En la segunda oración no aparece “Flavio”, pero sabemos que él es quien viajó. El sujeto se omite porque ya está activo en la mente del lector.',
       transfer:'Para detectar elipsis, intenta completar la oración con una palabra anterior sin cambiar el sentido.',
       wrong:{
@@ -67,7 +67,7 @@
     },
     'RV-12-005': {
       position:126, answer:'D', focus:'Anáfora según la clasificación usada por el libro',
-      anchor:'El pato paseaba por el lago como un rey',
+      anchor:'dos anáforas',
       secondary:'Este era observado',
       point:'La clave oficial toma “Este” y “se” como dos elementos que remiten al pato. La idea general que debes aprender es que una anáfora recupera un referente ya presentado.',
       transfer:'No cuentes palabras por apariencia: para cada candidato, pregunta “¿a qué expresión anterior está sustituyendo o remitiendo?”.',
@@ -81,7 +81,7 @@
     },
     'RV-12-006': {
       position:127, answer:'A', focus:'Combinar anáfora y catáfora en un mismo texto',
-      anchor:'Raúl, él pudo inscribirse',
+      anchor:'dos anáforas y una catáfora',
       secondary:'varios estudiantes: Pedro, Gabriel, Ruth',
       point:'“Él” retoma a Raúl y “allí” remite a un lugar/situación ya planteada; después, “varios estudiantes” anuncia una lista que aparece a continuación. El ejercicio combina flechas hacia atrás y hacia adelante.',
       transfer:'Cuando te pidan varios mecanismos juntos, marca cada referencia con una flecha antes de contarla.',
