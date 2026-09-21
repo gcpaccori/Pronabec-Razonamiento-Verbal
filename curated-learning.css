@@ -1,4 +1,4 @@
-/* Curated learning layer for exercises 51-100. Evidence first, explanation second. */
+/* Curated learning layer for exercises 51-150. Evidence first, explanation second. */
 .curated-reading{font:inherit;color:inherit}
 .curated-hl{
   font:inherit!important;color:inherit!important;
@@ -43,8 +43,47 @@
 .curated-audit p{margin:6px 0 0!important;font-size:.69rem!important;line-height:1.42!important}
 .prompt .curated-inline-note{font-weight:430!important;letter-spacing:0!important}
 .prompt .curated-hl{font-weight:inherit!important}
+
+/* 101-150: guided contrast. The selected distractor is understood first, then corrected. */
+.curated-feedback-v2{padding:13px!important}
+.curated-feedback-v2 .curated-human-title{
+  max-width:38rem;margin-bottom:10px;font-size:.8rem;letter-spacing:-.006em;
+}
+.curated-inline-note-v2{
+  border-left-color:#89ad99;
+  background:linear-gradient(90deg,rgba(240,248,243,.98),rgba(249,251,250,.94));
+}
+.curated-inline-note-v2>b{color:#3f6851}
+.curated-guided-grid{display:grid;gap:7px;margin:9px 0}
+.curated-tempting,.curated-break{
+  padding:9px 10px;border-radius:11px;border:1px solid #e8ebef;background:#f8f9fb;
+}
+.curated-tempting{background:#f7f8fa}
+.curated-break{background:#fffaf3;border-color:#eee4d6}
+.curated-tempting>b,.curated-break>b{
+  display:block;margin-bottom:3px;font-size:.63rem;font-weight:780;letter-spacing:.015em;
+}
+.curated-tempting>b{color:#62717e}
+.curated-break>b{color:#846643}
+.curated-tempting p{color:#52606d!important}
+.curated-break p{color:#5b5147!important}
+.curated-feedback-v2 .curated-example{
+  background:#f4f7fb;border-color:#e4ebf3;
+}
+.curated-feedback-v2 .curated-principle{
+  background:#f8fafb;border-left-color:#9fb2c2;
+}
+.curated-feedback-v2 .curated-choice-card.correct{
+  margin-top:10px;background:#f1f8f3;border-color:#dbe9df;
+}
+.curated-feedback-v2 .curated-audit{
+  margin-top:10px;background:#fafafa;border:1px solid #eceeef;border-radius:10px;padding:8px 9px;
+}
+.curated-feedback-v2 .curated-audit summary{list-style-position:inside}
+
 @media(min-width:720px){
   .curated-inline-note{font-size:.74rem!important}
   .curated-feedback{font-size:.79rem!important}
   .curated-choice-card>b{font-size:.8rem}
+  .curated-guided-grid{grid-template-columns:1fr 1fr}
 }
