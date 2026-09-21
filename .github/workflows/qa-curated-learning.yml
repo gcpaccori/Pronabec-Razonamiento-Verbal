@@ -14,8 +14,15 @@ on:
       - 'data/learning-bank-91-100.js'
       - 'data/official-key-audit-51-100.js'
       - 'data/human-examples-51-100.js'
-      - 'data/learning-coach.js'
       - 'data/curated-coach-51-100.js'
+      - 'data/learning-bank-101-110.js'
+      - 'data/learning-bank-111-120.js'
+      - 'data/learning-bank-121-130.js'
+      - 'data/learning-bank-131-140.js'
+      - 'data/learning-bank-141-150.js'
+      - 'data/human-examples-101-150.js'
+      - 'data/curated-coach-101-150.js'
+      - 'data/learning-coach.js'
       - 'curated-learning.css'
       - '.github/workflows/qa-curated-learning.yml'
   workflow_dispatch:
@@ -31,15 +38,21 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+
       - name: JavaScript syntax
         run: |
           node --check app.js
           node --check data/learning-coach.js
           node --check data/curated-coach-51-100.js
+          node --check data/curated-coach-101-150.js
           node --check data/official-key-audit-51-100.js
           node --check data/human-examples-51-100.js
-          for f in data/learning-bank-51-60.js data/learning-bank-61-70.js data/learning-bank-71-80.js data/learning-bank-81-90.js data/learning-bank-91-100.js; do node --check "$f"; done
-      - name: Verify official keys, curated coverage and examples
+          node --check data/human-examples-101-150.js
+          for f in             data/learning-bank-51-60.js data/learning-bank-61-70.js data/learning-bank-71-80.js data/learning-bank-81-90.js data/learning-bank-91-100.js             data/learning-bank-101-110.js data/learning-bank-111-120.js data/learning-bank-121-130.js data/learning-bank-131-140.js data/learning-bank-141-150.js; do
+            node --check "$f"
+          done
+
+      - name: Verify curated coverage, distractors, examples and source audit
         run: |
           node <<'NODE'
           const fs = require('fs');
@@ -49,6 +62,16 @@ jobs:
           const load = f => vm.runInContext(fs.readFileSync(f, 'utf8'), sandbox, { filename: f });
 
           load('data/questions.js');
+          const topics = sandbox.window.PRONABEC_DATA.topics || [];
+          const flat = topics.flatMap(t => t.questions || []);
+          const qById = new Map(flat.map(q => [q.id, q]));
+          const contextByQuestion = new Map();
+          for (const t of topics) {
+            const ctx = new Map((t.contexts || []).map(c => [c.id, c]));
+            for (const q of (t.questions || [])) contextByQuestion.set(q.id, ctx.get(q.context_id) || null);
+          }
+
+          // Existing 51-100 layer.
           for (const f of [
             'data/learning-bank-51-60.js',
             'data/learning-bank-61-70.js',
@@ -66,11 +89,6 @@ jobs:
             'RV-09-009': 'D',
             'RV-09-015': 'C'
           };
-
-          const flat = (sandbox.window.PRONABEC_DATA.topics || []).flatMap(t => t.questions || []);
-          const qById = new Map(flat.map(q => [q.id, q]));
-          const bank = sandbox.window.PRONABEC_CURATED_51_100 || {};
-
           for (const [id, expected] of Object.entries(officialExpected)) {
             const q = qById.get(id);
             if (!q) throw new Error(`Missing question ${id}`);
@@ -78,43 +96,127 @@ jobs:
           }
 
           load('data/official-key-audit-51-100.js');
-          for (const [id, expected] of Object.entries(officialExpected)) {
-            if (bank[id]?.answer !== expected) throw new Error(`${id}: audited bank answer ${bank[id]?.answer}, expected ${expected}`);
+          load('data/human-examples-51-100.js');
+
+          // New 101-150 layer.
+          for (const f of [
+            'data/learning-bank-101-110.js',
+            'data/learning-bank-111-120.js',
+            'data/learning-bank-121-130.js',
+            'data/learning-bank-131-140.js',
+            'data/learning-bank-141-150.js'
+          ]) load(f);
+          load('data/human-examples-101-150.js');
+
+          const oldBank = sandbox.window.PRONABEC_CURATED_51_100 || {};
+          const oldHuman = sandbox.window.PRONABEC_HUMAN_EXAMPLES_51_100 || {};
+          const newBank = sandbox.window.PRONABEC_CURATED_101_150 || {};
+          const newHuman = sandbox.window.PRONABEC_HUMAN_EXAMPLES_101_150 || {};
+
+          const oldIdsExpected = flat.slice(50, 100).map(q => q.id);
+          const oldIds = Object.keys(oldBank).sort((a,b) => oldBank[a].position - oldBank[b].position);
+          if (oldIds.length !== 50 || JSON.stringify(oldIds) !== JSON.stringify(oldIdsExpected)) {
+            throw new Error('Existing curated IDs 51-100 changed or became incomplete');
+          }
+          if (Object.keys(oldHuman).length !== 50) throw new Error('Existing human examples 51-100 changed');
+
+          const newIdsExpected = flat.slice(100, 150).map(q => q.id);
+          const newIds = Object.keys(newBank).sort((a,b) => newBank[a].position - newBank[b].position);
+          if (newIds.length !== 50) throw new Error(`Curated 101-150 has ${newIds.length} entries, expected 50`);
+          if (JSON.stringify(newIds) !== JSON.stringify(newIdsExpected)) {
+            throw new Error('Curated IDs do not exactly match global exercises 101-150');
+          }
+          if (Object.keys(newHuman).length !== 50) {
+            throw new Error(`Human examples 101-150 has ${Object.keys(newHuman).length} entries, expected 50`);
           }
 
-          load('data/human-examples-51-100.js');
-          const human = sandbox.window.PRONABEC_HUMAN_EXAMPLES_51_100 || {};
+          const norm = s => String(s || '').replace(/\s+/g,' ').trim().toLowerCase();
+          for (const id of newIds) {
+            const q = qById.get(id);
+            const e = newBank[id];
+            const h = newHuman[id];
+            if (!q || !e.focus || !e.point || !e.transfer || !e.anchor) {
+              throw new Error(`${id}: incomplete curated explanation`);
+            }
+            if (!h?.plain || !h?.example) throw new Error(`${id}: missing human explanation/example`);
+
+            for (const alt of q.alternatives || []) {
+              if (alt.letter === e.answer) continue;
+              const w = e.wrong?.[alt.letter];
+              if (!w || typeof w !== 'object' || !w.plausible || !w.break) {
+                throw new Error(`${id}: distractor ${alt.letter} needs plausible + break guidance`);
+              }
+            }
+
+            const ctx = contextByQuestion.get(id);
+            const source = norm([q.prompt, q.prelude_text, ctx?.text].filter(Boolean).join(' '));
+            if (!source.includes(norm(e.anchor))) {
+              throw new Error(`${id}: highlight anchor not found in prompt/prelude/context: ${e.anchor}`);
+            }
+          }
+
+          // Raw book labels that deserve an audit note in this block.
+          const auditedBookKeys = {
+            'RV-10-010': 'A',
+            'RV-12-001': 'D',
+            'RV-12-005': 'D',
+            'RV-12-008': 'E',
+            'RV-13-008': 'C',
+            'RV-13-013': 'A'
+          };
+          for (const [id, key] of Object.entries(auditedBookKeys)) {
+            if (qById.get(id)?.correct_answer !== key) throw new Error(`${id}: unexpected raw book key`);
+            if (!newBank[id]?.audit) throw new Error(`${id}: audited item must include a quality note`);
+          }
+
+          // One unmistakable printed-letter typo is repaired for learning:
+          // the book prose says "Cusco, Arequipa y Piura" but prints Respuesta A.
+          if (newBank['RV-10-010']?.answer !== 'E' || newBank['RV-10-010']?.bookAnswer !== 'A') {
+            throw new Error('RV-10-010 must preserve printed A but teach conceptual E');
+          }
 
           load('data/learning-coach.js');
           load('data/curated-coach-51-100.js');
+          load('data/curated-coach-101-150.js');
+
           for (const [id, expected] of Object.entries(officialExpected)) {
-            const q = qById.get(id);
-            if (q.correct_answer !== expected) throw new Error(`${id}: runtime key mutated to ${q.correct_answer}`);
-          }
-
-          const expectedIds = flat.slice(50, 100).map(q => q.id);
-          const bankIds = Object.keys(bank).sort((a, b) => bank[a].position - bank[b].position);
-          if (bankIds.length !== 50) throw new Error(`Curated bank has ${bankIds.length} entries, expected 50`);
-          if (JSON.stringify(bankIds) !== JSON.stringify(expectedIds)) throw new Error('Curated IDs do not exactly match global exercises 51-100');
-
-          for (const id of bankIds) {
-            const q = qById.get(id);
-            const e = bank[id];
-            if (!e.focus || !e.point || !e.transfer || !e.anchor) throw new Error(`${id}: incomplete curated explanation`);
-            for (const alt of q.alternatives || []) {
-              if (alt.letter !== e.answer && !e.wrong?.[alt.letter]) throw new Error(`${id}: missing explanation for distractor ${alt.letter}`);
+            if (qById.get(id)?.correct_answer !== expected) {
+              throw new Error(`${id}: new layer regressed existing 51-100 scoring`);
             }
-            if (!human[id]?.plain || !human[id]?.example) throw new Error(`${id}: missing human plain explanation or concrete example`);
           }
-          if (Object.keys(human).length !== 50) throw new Error(`Human examples has ${Object.keys(human).length} entries, expected 50`);
+          if (qById.get('RV-10-010')?.correct_answer !== 'E') {
+            throw new Error('RV-10-010 editorial correction was not applied at runtime');
+          }
+          for (const id of newIds) {
+            if (id === 'RV-10-010') continue;
+            const raw = flat.find(q => q.id === id);
+            const expected = newBank[id].answer;
+            if (raw.correct_answer !== expected) {
+              throw new Error(`${id}: runtime answer ${raw.correct_answer} differs from curated answer ${expected}`);
+            }
+          }
 
           const html = fs.readFileSync('index.html', 'utf8');
-          const auditPos = html.indexOf('data/official-key-audit-51-100.js');
-          const humanPos = html.indexOf('data/human-examples-51-100.js');
-          const coachPos = html.indexOf('data/curated-coach-51-100.js');
-          if (auditPos < 0 || humanPos < 0 || coachPos < 0 || auditPos > humanPos || humanPos > coachPos) {
-            throw new Error('audit and human examples must load before curated coach');
+          const order = [
+            'data/human-examples-51-100.js',
+            'data/learning-bank-101-110.js',
+            'data/learning-bank-111-120.js',
+            'data/learning-bank-121-130.js',
+            'data/learning-bank-131-140.js',
+            'data/learning-bank-141-150.js',
+            'data/human-examples-101-150.js',
+            'data/learning-coach.js',
+            'data/curated-coach-51-100.js',
+            'data/curated-coach-101-150.js',
+            'app.js'
+          ];
+          let last = -1;
+          for (const token of order) {
+            const pos = html.indexOf(token);
+            if (pos < 0) throw new Error(`index missing ${token}`);
+            if (pos <= last) throw new Error(`index load order broken at ${token}`);
+            last = pos;
           }
 
-          console.log('QA OK: official keys preserved; 50/50 curated questions have distractor reasons and concrete human examples.');
+          console.log('QA OK: 51-100 preserved; 101-150 curated 50/50 with per-distractor guidance, concrete examples, highlight anchors and source audits.');
           NODE
