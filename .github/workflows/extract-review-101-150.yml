@@ -1,0 +1,58 @@
+name: Extract review 101-150
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/extract-review-101-150.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  extract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Build review excerpt
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const vm = require('vm');
+          const sandbox = { window: {}, console };
+          vm.createContext(sandbox);
+          vm.runInContext(fs.readFileSync('data/questions.js','utf8'), sandbox);
+          const topics = sandbox.window.PRONABEC_DATA.topics || [];
+          const flat = [];
+          for (const t of topics) {
+            const ctx = new Map((t.contexts || []).map(c => [c.id, c]));
+            for (const q of (t.questions || [])) {
+              flat.push({
+                position: flat.length + 1,
+                id: q.id,
+                topic_id: t.id,
+                topic: t.title,
+                prompt: q.prompt,
+                prelude_text: q.prelude_text || '',
+                context_label: ctx.get(q.context_id)?.label || '',
+                context_text: ctx.get(q.context_id)?.text || '',
+                alternatives: q.alternatives,
+                correct_answer: q.correct_answer,
+                correct_answer_text: q.correct_answer_text,
+                original_page_start: q.original_page_start,
+                answer_source_page: q.answer_source_page
+              });
+            }
+          }
+          const out = flat.slice(100,150);
+          if (out.length !== 50) throw new Error('Expected 50 questions');
+          fs.writeFileSync('data/review-101-150.json', JSON.stringify(out, null, 2));
+          NODE
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/review-101-150.json
+          git commit -m "Add temporary review extract 101-150"
+          git push
